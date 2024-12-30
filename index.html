@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mosquito-map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <style>
+        #map { height: 500px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+</body>
+<script src="js/mapFunctions.js"></script>
+<script>
+    const map = L.map('map').setView([23.7, 121], 7); // 台灣中心地圖
+
+    // 加載地圖圖層
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // 從 Flask API 獲取標記數據
+    fetch('http://127.0.0.1:5000/api/markers')
+        .then(response => response.json())
+        .then(data => {
+            data.forEach(markerData => {
+                const color = getColor(markerData.level); // 根據層級生成顏色
+                const customIcon = createCustomIcon(color); // 創建自定義圖標
+                L.marker([markerData.latitude, markerData.longitude], {
+                    icon: customIcon
+                }).addTo(map)
+                  .bindPopup(`Location: (${markerData.latitude}, ${markerData.longitude})<br>Level: ${markerData.level}`);
+            });
+        })
+        .catch(error => console.error('Error fetching marker data:', error));
+</script>
+</html>
