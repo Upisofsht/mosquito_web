@@ -1,0 +1,41 @@
+#map {
+    width: 100%; /* 確保地圖寬度填滿容器 */
+    height: 100%; /* 默認高度 */
+}
+
+/* 手機設備樣式 */
+@media (max-width: 768px) {
+    #map {
+        height: 300px; /* 手機屏幕高度減小 */
+    }
+}
+
+/* 平板設備樣式 */
+@media (min-width: 769px) and (max-width: 1024px) {
+    #map {
+        height: 400px; /* 平板高度 */
+    }
+}
+
+/* 桌面設備樣式 */
+@media (min-width: 1025px) {
+    #map {
+        height: 1000px; /* 桌面高度更大 */
+    }
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+#header {
+    height: 50px;
+    background-color: #333;
+    color: white;
+}
+#mosquito-box {
+    font-size: 14px;
+    border-radius: 4px;
+}
