@@ -4,10 +4,10 @@ import mysql.connector
 def connect_to_database():
     try:
         conn = mysql.connector.connect(
-            host="localhost",       # XAMPP MySQL 的默認主機
-            user="root",            # 默認使用 root 用戶
-            password="",            # 默認無密碼（根據你的設定調整）
-            database="mosquito"     # 資料庫名稱
+            host="localhost",       
+            user="root",            
+            password="",            
+            database="mosquito"     
         )
         return conn
     except mysql.connector.Error as err:
