@@ -46,7 +46,6 @@ def select(query, params=None):
             cursor.close()
             conn.close()
 
-# 現有的範例函數仍可保留，並重構使用 select 函數
 def get_max_data_by_device():
     query = """
     WITH MaxData AS (
@@ -79,3 +78,58 @@ def get_max_data_by_device():
         m.device_id = md.device_id AND m.data_id = md.max_data_id;
     """
     return select(query)
+
+def get_data_by_time(start_time, end_time):
+    conn = connect_to_database()
+    if not conn:
+        return []
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = """
+        SELECT 
+            p.photo_address,
+            SUM(m.m0 + m.m1 + m.m2 + m.m3 + m.m4) AS count,
+            SUM(m.m0) AS m0,
+            SUM(m.m1) AS m1,
+            SUM(m.m2) AS m2,
+            SUM(m.m3) AS m3,
+            SUM(m.m4) AS m4
+        FROM 
+            data AS m
+        JOIN 
+            photo AS p
+        ON 
+            m.photo_id = p.photo_id
+        WHERE 
+            m.photo_time BETWEEN %s AND %s
+        GROUP BY 
+            p.photo_address;
+        """
+        cursor.execute(query, (start_time, end_time))
+        results = cursor.fetchall()
+        return results
+    except mysql.connector.Error as err:
+        print(f"SQL Error: {err}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+        
+def get_all_photo_addresses():
+    conn = connect_to_database()
+    if not conn:
+        return []
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT photo_address FROM photo GROUP BY photo_address"
+        cursor.execute(query)
+        results = cursor.fetchall()
+        return [row["photo_address"] for row in results]  # 提取 photo_address 列
+    except mysql.connector.Error as err:
+        print(f"SQL Error: {err}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()

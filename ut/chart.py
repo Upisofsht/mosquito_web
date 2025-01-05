@@ -203,3 +203,62 @@ def generate_interactive_chart():
 
     # 返回 HTML 片段
     return fig_html
+
+def generate_chart_for_address(address):
+    # 獲取與指定地址相關的資料
+    photo_data = select(
+        "SELECT photo_id, photo_time, count FROM photo WHERE photo_address = %s ORDER BY CAST(photo_id AS UNSIGNED) ASC;",
+        (address,)
+    )
+    mosquito_data = select("SELECT mosquito_id, mosquito_name FROM mosquito;")
+    seg_photo_data = select("SELECT photo_id, mosquito_id FROM seg_photo;")
+
+    if not photo_data or not mosquito_data:
+        return None
+
+    # 將資料轉換為 DataFrame
+    photo_df = pd.DataFrame(photo_data, columns=["photo_id", "photo_time", "count"])
+    mosquito_df = pd.DataFrame(mosquito_data, columns=["mosquito_id", "mosquito_name"])
+    seg_photo_df = pd.DataFrame(seg_photo_data, columns=["photo_id", "mosquito_id"])
+
+    # 確保 photo_time 是 datetime 格式
+    photo_df["photo_time"] = pd.to_datetime(photo_df["photo_time"], format="%Y%m%d%H%M%S")
+
+    # 篩選 seg_photo_data，僅保留 photo_id 在 photo_df 中的記錄
+    valid_photo_ids = photo_df["photo_id"].unique()
+    seg_photo_df = seg_photo_df[seg_photo_df["photo_id"].isin(valid_photo_ids)]
+
+    # 合併資料
+    merged_df = photo_df.merge(seg_photo_df, on="photo_id", how="left")
+    merged_df = merged_df.merge(mosquito_df, on="mosquito_id", how="left")
+
+    # 按時間和蚊蟲種類分組，並生成圖表
+    mosquito_names = mosquito_df["mosquito_name"].tolist()
+    grouped = merged_df.groupby(["photo_time", "mosquito_name"]).size().unstack(fill_value=0)
+
+    # 確保所有蚊蟲種類的列存在
+    for mosquito in mosquito_names:
+        if mosquito not in grouped.columns:
+            grouped[mosquito] = 0
+
+    # 重設索引以便繪圖
+    grouped = grouped.reset_index()
+
+    # 使用 Plotly 繪製圖表，與 generate_interactive_chart 一致
+    fig = px.line(
+        grouped,
+        x="photo_time",  # X 軸為時間
+        y=mosquito_names,  # Y 軸為蚊蟲種類數量
+        labels={"value": "Count", "photo_time": "Time"},
+        title=f"Mosquito Count History for {address}",
+    )
+    fig.update_layout(
+        xaxis_title="Time",
+        yaxis_title="Mosquito Count",
+        template="plotly_white",
+        dragmode="pan",  # 設置預設模式為平移
+        margin=dict(l=50, r=50, t=50, b=50),  # 邊距
+        height=600,  # 圖表高度
+        width=1000  # 圖表寬度
+    )
+    return fig.to_html(full_html=False)

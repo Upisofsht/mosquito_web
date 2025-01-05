@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -14,10 +16,19 @@
         <div id="chart-container">
             <img id="chart-image" src="" alt="Mosquito Count History Chart">
         </div>
-        <div id="map"></div>
+        <div id="map-container">
+            <div id="map"></div>
+        </div>
+        <!-- 調整空間 -->
+        <div id="space">
+            <div id="address-charts-container">
+                <!-- 動態插入圖表 -->
+            </div>
+        </div>
     </div>
 </body>
 <script src="js/mapFunctions.js"></script>
+<script src="js/chart.js"></script>
 <script>
     const map = L.map('map').setView([23.7, 121], 7); // 台灣中心地圖
 
@@ -31,10 +42,22 @@
         map.invalidateSize(); // 刷新地圖大小
     });
 
-    // 從 Flask API 獲取標記數據
-    fetchAllDataAndRenderMarkers(map);
-    document.addEventListener('DOMContentLoaded', loadInteractiveChart);
+    fetchAllAddressesAndRenderMarkers(map);
 
+    // 初始化控制項（時間選擇器 + 下拉式選單）
+    initControls(map, (startTime, endTime) => {
+        fetchDataByTimeAndRenderMarkers(startTime, endTime, map);
+    }, (filter) => {
+        // 過濾條件更新後重新渲染標記
+        fetchDataByTimeAndRenderMarkers(
+            document.getElementById('start-time').value,
+            document.getElementById('end-time').value,
+            map
+        );
+    });
+    const defaultStart = getDefaultStartTime();
+    const defaultEnd = getDefaultEndTime();
+    fetchDataByTimeAndRenderMarkers(defaultStart, defaultEnd, map);
 
     <!-- updateChart(); -->
 </script>
