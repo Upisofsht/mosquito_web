@@ -18,6 +18,20 @@ def generate_markers():
         markers.append({"latitude": latitude, "longitude": longitude, "level": level})
     return markers
 
+# 提供 index.html
+@app.route('/')
+def home():
+    return send_from_directory('.', 'index.html')
+
+# 提供靜態資源 (CSS 和 JS)
+@app.route('/css/<path:filename>')
+def serve_css(filename):
+    return send_from_directory('css', filename)
+
+@app.route('/js/<path:filename>')
+def serve_js(filename):
+    return send_from_directory('js', filename)
+
 @app.route('/api/markers', methods=['GET'])
 def get_markers():
     return jsonify(generate_markers())
