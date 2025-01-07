@@ -4,9 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>mosquito-map</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <link rel="stylesheet" href="/css/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .js-plotly-plot .plotly .user-select-none{
+            user-select: none !important;
+            margin-top: 20px !important;
+            margin-left: 12px !important;
+        }
+    </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <link rel="stylesheet" href="/css/styles.css" />
@@ -16,24 +23,28 @@
         <div id="map-container">
             <div id="map"></div>
         </div>
-        <!-- 調整空間 -->
-        <div id="space">
-            <div id="address-charts-container">
-                <!-- 動態插入圖表 -->
-            </div>
-        </div>
     </div>
 </body>
 <script src="/js/mapFunctions.js"></script>
 <script src="/js/chart.js"></script>
 <script>
-    const map = L.map('map').setView([23.7, 121], 7); // 台灣中心地圖
+    const map = L.map('map', {
+    center: [23.7, 121], // 台灣中心地圖
+    zoom: 7,             // 初始縮放層級
+    minZoom: 3,          // 最小縮放層級
+    maxZoom: 18,         // 最大縮放層級
+    maxBounds: [         // 設定地圖拖動的最大範圍
+        [-90, -180],     // 南西角 (南緯 90 度, 西經 180 度)
+        [90, 180]        // 東北角 (北緯 90 度, 東經 180 度)
+    ],
+    maxBoundsViscosity: 1.0 // 完全限制拖動範圍，不產生回彈
+});
 
-    // 加載地圖圖層
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
+// 加載地圖圖層
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+}).addTo(map);
+    
 
     window.addEventListener('resize', () => {
         map.invalidateSize(); // 刷新地圖大小

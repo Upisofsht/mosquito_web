@@ -167,7 +167,6 @@ def generate_chart_for_address(address):
         x="photo_time",  # X 軸為時間
         y=mosquito_names,  # Y 軸為蚊蟲種類數量
         labels={"value": "Count", "photo_time": "Time"},
-        title=f"Mosquito Count History for {address}",
     )
     fig.update_layout(
         xaxis_title="Time",
@@ -175,7 +174,7 @@ def generate_chart_for_address(address):
         template="plotly_white",
         dragmode="pan",  # 設置預設模式為平移
         margin=dict(l=50, r=50, t=50, b=50),  # 邊距
-        height=600,  # 圖表高度
-        width=1000  # 圖表寬度
+        height=500,  # 圖表高度
+        width=850  # 圖表寬度
     )
     return fig.to_html(full_html=False)

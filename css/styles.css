@@ -32,14 +32,12 @@
 /* 地圖容器樣式 */
 #map-container {
     width: 100%; /* 滿寬 */
-    margin: 20px 0; /* 與其他區塊保持距離 */
     padding: 0; /* 移除內邊距 */
 }
 
 #map {
     width: 100%; /* 地圖寬度自適應容器 */
     height: 100%; /* 地圖高度自適應容器 */
-    border-radius: 8px; /* 可選：圓角 */
 }
 
 /* 調整 #space */
@@ -69,7 +67,7 @@
 /* 全局滾動 */
 body {
     margin: 0; /* 移除默認邊距 */
-    overflow-y: scroll; /* 啟用垂直滾動條 */
+    overflow-y: hidden; /* 啟用垂直滾動條 */
     height: 100%; /* 確保內容充滿視窗 */
 }
 
@@ -94,7 +92,7 @@ html {
 /* 桌面設備樣式 */
 @media (min-width: 1025px) {
     #map {
-        height: 1000px; /* 桌面高度更大 */
+        height: 950px; /* 桌面高度更大 */
     }
 }
 
@@ -114,3 +112,9 @@ html {
     font-size: 14px;
     border-radius: 4px;
 }
+
+
+
+
+
+
