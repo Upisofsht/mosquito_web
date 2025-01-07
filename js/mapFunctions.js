@@ -16,15 +16,13 @@ function createCustomIcon(color) {
 
 function getColor(count) {
     console.log("count: ", count);
+    if (count === 0) {
+        return 'black'; // Marker 顏色為黑色
+    }
     const levels = [10000, 5000, 1000, 500, 250, 125, 75, 50, 25, 5, 0]; // 層級
     const maxLightness = 90; // 最淺藍色
     const minLightness = 20; // 最深藍色
     const hue = 240; // 藍色的 HSL 色相
-
-    // 如果 count 為 0，返回黑色
-    if (count === 0) {
-        return 'black';
-    }
 
     // 找到對應區間，計算光亮度
     for (let i = 0; i < levels.length; i++) {
@@ -78,13 +76,16 @@ function getComplementaryColor(hslColor) {
         hue = (hue + 180) % 360; // 色相加 180 度
         return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     }
-    return hslColor; // 如果格式不正確，返回原來的顏色
+    return 'white'; // 如果格式不正確，返回白色
 }
 
 // 創建自定義圖標，顯示 count 並保持顏色
 function createCustomIconWithCount(count, color) {
-    const complementColor = count === '0' ? 'white' : getComplementaryColor(color);
-    console.log(count)
+    // 確保 count 是數字
+    const isZero = count === 0; // 檢查數字類型的零
+    const complementColor = isZero ? 'white' : getComplementaryColor(color);
+
+    console.log(count);
     // 創建顯示 count 的 div，並保持顏色
     const icon = L.divIcon({
         className: 'count-icon', // 用於樣式
@@ -371,10 +372,15 @@ function renderMarkers(data, map) {
         const [lat, lng] = item.photo_address.split(',').map(coord => parseFloat(coord.trim()));
 
         if (!isNaN(lat) && !isNaN(lng)) {
-            const color = getColor(item.count); // 根據 count 設定顏色
+            const mosquitoCount = currentFilter === 'all' 
+                ? parseInt(item.count, 10) // 將總數轉換為整數
+                : parseInt(item[currentFilter], 10); // 將對應的蚊蟲類型數量轉換為整數
+            
+            console.log("item: ", item)
+            const color = getColor(mosquitoCount); // 根據 count 設定顏色
 
             // 創建自定義圖標並添加到地圖上
-            const customIcon = createCustomIconWithCount(item.count, color);
+            const customIcon = createCustomIconWithCount(mosquitoCount, color);
 
             const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
 

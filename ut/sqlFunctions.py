@@ -172,6 +172,7 @@ def get_data_with_device_name(start_time, end_time):
     """
     根據指定時間範圍，從資料庫中篩選出符合條件的資料。
     最終返回包含 device_name, photo_address, count, m0, m1, m2, m3, m4 的資料。
+    如果沒有找到資料，也會返回 device_id 和 photo_address，並將數量設為 0。
     """
     conn = connect_to_database()
     if not conn:
@@ -194,7 +195,7 @@ def get_data_with_device_name(start_time, end_time):
             device_id = device["device_id"]
             device_name = device["device_name"]
             
-            # 找到該 device_id 中 photo_id 最大的一筆資料的 photo_address
+            # 找到該 device_id 中最新的 photo_address
             photo_query = """
             SELECT photo_address
             FROM photo
@@ -209,11 +210,9 @@ def get_data_with_device_name(start_time, end_time):
             cursor.execute(photo_query, (device_id, device_id))
             photo_result = cursor.fetchone()
             
-            if not photo_result or not photo_result["photo_address"]:
-                continue
-            
-            photo_address = photo_result["photo_address"]
-            
+            # 如果沒有地址，跳過該設備
+            photo_address = photo_result["photo_address"] if photo_result else "Unknown"
+
             # 找到該時間範圍內的 photo_id
             photo_ids_query = """
             SELECT photo_id
@@ -224,29 +223,32 @@ def get_data_with_device_name(start_time, end_time):
             cursor.execute(photo_ids_query, (device_id, start_time, end_time))
             photo_ids = [row["photo_id"] for row in cursor.fetchall()]
             
-            if not photo_ids:
-                continue
-            
-            # 找到這些 photo_id 在 seg_photo 中的 SP_id 和 mosquito_id
-            seg_photo_query = """
-            SELECT mosquito_id
-            FROM seg_photo
-            WHERE photo_id IN (%s)
-            """ % ','.join(['%s'] * len(photo_ids))
-            cursor.execute(seg_photo_query, photo_ids)
-            seg_photo_results = cursor.fetchall()
-            
-            # 計算 m0~m4 和 count
-            m_counts = {"m0": 0, "m1": 0, "m2": 0, "m3": 0, "m4": 0}
-            for result in seg_photo_results:
-                mosquito_id = result["mosquito_id"]
-                if mosquito_id in ["0", "1", "2", "3", "4"]:
-                    m_counts[f"m{mosquito_id}"] += 1
-            
-            count = len(seg_photo_results)
-            
+            if photo_ids:
+                # 找到這些 photo_id 在 seg_photo 中的 mosquito_id
+                seg_photo_query = """
+                SELECT mosquito_id
+                FROM seg_photo
+                WHERE photo_id IN (%s)
+                """ % ','.join(['%s'] * len(photo_ids))
+                cursor.execute(seg_photo_query, photo_ids)
+                seg_photo_results = cursor.fetchall()
+                
+                # 計算 m0~m4 和 count
+                m_counts = {"m0": 0, "m1": 0, "m2": 0, "m3": 0, "m4": 0}
+                for result in seg_photo_results:
+                    mosquito_id = result["mosquito_id"]
+                    if mosquito_id in ["0", "1", "2", "3", "4"]:
+                        m_counts[f"m{mosquito_id}"] += 1
+                
+                count = len(seg_photo_results)
+            else:
+                # 如果沒有資料，設置所有計數為 0
+                m_counts = {"m0": 0, "m1": 0, "m2": 0, "m3": 0, "m4": 0}
+                count = 0
+
             # 添加結果到列表
             results.append({
+                "device_id": device_id,
                 "device_name": device_name,
                 "photo_address": photo_address,
                 "count": count,
