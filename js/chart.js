@@ -1,21 +1,3 @@
-//圖表生成
-function loadInteractiveChart() {
-    fetch('http://127.0.0.1:5000/api/chart')
-        .then(response => response.json())
-        .then(data => {
-            const chartContainer = document.getElementById('chart-container');
-            chartContainer.innerHTML = data.chart_html;
-
-            // 確保 Plotly 的腳本正確執行
-            const scripts = chartContainer.getElementsByTagName('script');
-            for (let script of scripts) {
-                eval(script.innerText); // 執行嵌入的 JavaScript
-            }
-        })
-        .catch(error => console.error('Error loading chart:', error));
-}
-document.addEventListener('DOMContentLoaded', loadInteractiveChart);
-
 function fetchChartForAddress(address) {
     console.log(`Fetching chart for address: ${address}`);
     fetch(`http://127.0.0.1:5000/api/chart-for-address?address=${encodeURIComponent(address)}`)

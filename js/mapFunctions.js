@@ -173,6 +173,7 @@ let markers = []
 
 function renderMarkers(data, map) {
     if (data.error) {
+        console.error(data.error);
         return;
     }
     map.eachLayer((layer) => {
@@ -185,17 +186,15 @@ function renderMarkers(data, map) {
         const [lat, lng] = item.photo_address.split(',').map(coord => parseFloat(coord.trim()));
 
         if (!isNaN(lat) && !isNaN(lng)) {
-            const displayValue = currentFilter === 'all'
-                ? parseInt(item.count, 10)
-                : parseInt(item[currentFilter], 10);
-            const customIcon = createCustomIcon(getColor(displayValue));
-
+            const customIcon = createCustomIcon(getColor(item.count)); // 根據 count 設定顏色
             const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
 
-            // 在 Popup 中添加按鈕
+            // 更新 Popup 顯示多出的 device_name
             marker.bindPopup(`
+                <strong>Device Name:</strong> ${item.device_name}<br>
                 <strong>Photo Address:</strong> ${item.photo_address}<br>
-                <strong>${currentFilter === 'all' ? 'Total Count' : `Mosquito (${currentFilter})`}:</strong> ${displayValue}<br>
+                <strong>Total Count:</strong> ${item.count}<br>
+                <strong>m0:</strong> ${item.m0}, <strong>m1:</strong> ${item.m1}, <strong>m2:</strong> ${item.m2}, <strong>m3:</strong> ${item.m3}, <strong>m4:</strong> ${item.m4}<br>
                 <button onclick="fetchChartForAddress('${item.photo_address}')">View Chart</button>
             `);
         }
