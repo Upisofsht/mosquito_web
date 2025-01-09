@@ -96,64 +96,7 @@ function createCustomIconWithCount(count, color) {
     return icon;
 }
 
-function fetchAllAddressesAndRenderMarkers(map) {
-    fetch('http://120.126.17.57:5001/api/all-address')
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                console.error(data.error);
-                return;
-            }
 
-            // 將地址渲染為黑色的 Marker
-            data.forEach(address => {
-                const [lat, lng] = address.split(',').map(coord => parseFloat(coord.trim()));
-
-                if (!isNaN(lat) && !isNaN(lng)) {
-                    const customIcon = createCustomIconWithCount('0','black'); // 使用黑色 marker
-                    const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
-
-                    // 在 Popup 中添加按鈕，允許查看該地址的圖表
-                    marker.bindPopup(`
-                        <strong>Photo Address:</strong> ${address}<br>
-                        <div id="chart-container-${address}" style="width: 100%; height: 300px; text-align: center;">
-                            Loading chart...
-                        </div>
-                    `);
-                    marker.on('popupopen', function () {
-                        const chartContainerId = `chart-container-${address}`;
-                        const chartContainer = document.getElementById(chartContainerId);
-
-                        fetch(`http://120.126.17.57:5001/api/chart-for-address?address=${encodeURIComponent(address)}`)
-                            .then(response => response.json())
-                            .then(data => {
-                                if (data.chart_html) {
-                                    // 插入圖表的 HTML
-                                    console.log(data.chart_html)
-                                    chartContainer.innerHTML = data.chart_html;
-
-                                    // 確保返回的 HTML 中的腳本正確執行
-                                    const scripts = chartContainer.querySelectorAll('script');
-                                    scripts.forEach(oldScript => {
-                                        const newScript = document.createElement('script');
-                                        newScript.textContent = oldScript.textContent;
-                                        document.body.appendChild(newScript);
-                                        newScript.remove(); // 避免腳本多次執行
-                                    });
-                                } else {
-                                    chartContainer.innerHTML = '<p>No chart data available.</p>';
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Error loading chart:', error);
-                                chartContainer.innerHTML = '<p>Error loading chart.</p>';
-                            });
-                    });
-                }
-            });
-        })
-        .catch(error => console.error('Error fetching all addresses:', error));
-}
 
 let currentFilter = 'all'; // 當前選擇的過濾條件
 
@@ -337,7 +280,7 @@ function fetchDataByTimeAndRenderMarkers(startTime, endTime, map) {
 
     console.log("end: ", formattedEndTime)
 
-    fetch(`http://120.126.17.57:5001/api/data-by-time?start_time=${formattedStartTime}&end_time=${formattedEndTime}`)
+    fetch(`http://127.0.0.1:5001/api/data-by-time?start_time=${formattedStartTime}&end_time=${formattedEndTime}`)
         .then(response => response.json())
         .then(data => {
             renderMarkers(data, map); // 渲染標記
@@ -352,9 +295,11 @@ function renderMarkers(data, map) {
         console.error(data.error);
         return;
     }
+
+    // 清除地圖上的舊標記
     map.eachLayer((layer) => {
         if (layer instanceof L.Marker) {
-            map.removeLayer(layer); // 移除之前的標記
+            map.removeLayer(layer);
         }
     });
 
@@ -362,11 +307,7 @@ function renderMarkers(data, map) {
         const [lat, lng] = item.device_address.split(',').map(coord => parseFloat(coord.trim()));
 
         if (!isNaN(lat) && !isNaN(lng)) {
-            const mosquitoCount = currentFilter === 'all' 
-                ? parseInt(item.count, 10) // 將總數轉換為整數
-                : parseInt(item[currentFilter], 10); // 將對應的蚊蟲類型數量轉換為整數
-            
-            console.log("item: ", item)
+            const mosquitoCount = parseInt(item.count, 10); // 總數轉換為整數
             const color = getColor(mosquitoCount); // 根據 count 設定顏色
 
             // 創建自定義圖標並添加到地圖上
@@ -374,25 +315,34 @@ function renderMarkers(data, map) {
 
             const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
 
-            // 更新 Popup 顯示多出的 device_name
+            // 綁定彈窗
             marker.bindPopup(`
-                <strong>Device Name:</strong> ${item.device_name}<br>
-                <strong>Photo Address:</strong> ${item.device_address}<br>
-                <strong>Total Count:</strong> ${item.count}<br>
-                <strong>m0:</strong> ${item.m0}, <strong>m1:</strong> ${item.m1}, <strong>m2:</strong> ${item.m2}, <strong>m3:</strong> ${item.m3}, <strong>m4:</strong> ${item.m4}<br>
-                <div id="chart-container-${item.device_address}">
-                    Loading chart...
+                <div style="max-width: 1000px; padding: 10px; font-size: 14px; text-align: center; margin: 0 auto;">
+                    <h3 style="margin-bottom: 10px;">Current Data</h3>
+                    <p><strong>Device Name:</strong> ${item.device_name}</p>
+                    <p><strong>Photo Address:</strong> ${item.device_address}</p>
+                    <p><strong>Total Count:</strong> ${item.count}</p>
+                    <p><strong>Type Breakdown:</strong> 
+                        m0: ${item.m0}, m1: ${item.m1}, 
+                        m2: ${item.m2}, m3: ${item.m3}, m4: ${item.m4}
+                    </p>
+                    <hr style="border: 1px solid #ccc; margin: 10px 0;">
+                    <h3 style="margin-bottom: 10px;">Historical Trend</h3>
+                    <div id="chart-container-${item.device_address}" 
+                         style="width: 100%; height: 250px; text-align: center; margin: 0 auto;">
+                        Loading chart...
+                    </div>
                 </div>
             `);
+
             marker.on('popupopen', function () {
                 const chartContainerId = `chart-container-${item.device_address}`;
                 const chartContainer = document.getElementById(chartContainerId);
 
-                fetch(`http://120.126.17.57:5001/api/chart-for-id?id=${encodeURIComponent(item.device_id)}`)
+                fetch(`http://127.0.0.1:5001/api/chart-for-id?id=${encodeURIComponent(item.device_id)}`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.chart_html) {
-                            // 插入圖表 HTML
                             chartContainer.innerHTML = data.chart_html;
 
                             // 確保返回的 HTML 中的腳本正確執行
@@ -415,4 +365,5 @@ function renderMarkers(data, map) {
         }
     });
 }
+
 

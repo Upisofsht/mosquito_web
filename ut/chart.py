@@ -19,7 +19,7 @@ def select(query, params=None):
             host="localhost",
             user="root",
             password="",
-            database="mosquito2"
+            database="mosquito"
         )
         cursor = conn.cursor(dictionary=True)  # 返回字典格式的結果
 
@@ -121,18 +121,25 @@ def generate_last_24h_chart():
 
     return chart_path
 
-def generate_chart_for_address(DeviceID):
-    # 獲取與指定地址相關的資料
-    print("Device_id: ", DeviceID)
+def generate_chart_for_address(device_id):
+    """
+    根據指定的 device_id，生成蚊蟲種類數量的時間線圖表。
+    """
+    # 獲取 photo 資料
     photo_data = select(
-        "SELECT photo_id, photo_time, count FROM photo WHERE device_id = %s ORDER BY CAST(photo_id AS UNSIGNED) ASC;",
-        (DeviceID,)
+        """
+        SELECT photo_id, photo_time, count
+        FROM photo
+        WHERE device_id = %s
+        ORDER BY CAST(photo_id AS UNSIGNED) ASC;
+        """,
+        (device_id,)
     )
-    print("photo_data: ", photo_data)
     mosquito_data = select("SELECT mosquito_id, mosquito_name FROM mosquito;")
     seg_photo_data = select("SELECT photo_id, mosquito_id FROM seg_photo;")
 
     if not photo_data or not mosquito_data:
+        # 如果 photo 或 mosquito 資料為空，返回空圖表
         return None
 
     # 將資料轉換為 DataFrame
@@ -143,15 +150,11 @@ def generate_chart_for_address(DeviceID):
     # 確保 photo_time 是 datetime 格式
     photo_df["photo_time"] = pd.to_datetime(photo_df["photo_time"], format="%Y%m%d%H%M%S")
 
-    # 篩選 seg_photo_data，僅保留 photo_id 在 photo_df 中的記錄
-    valid_photo_ids = photo_df["photo_id"].unique()
-    seg_photo_df = seg_photo_df[seg_photo_df["photo_id"].isin(valid_photo_ids)]
-
     # 合併資料
     merged_df = photo_df.merge(seg_photo_df, on="photo_id", how="left")
     merged_df = merged_df.merge(mosquito_df, on="mosquito_id", how="left")
 
-    # 按時間和蚊蟲種類分組，並生成圖表
+    # 按時間和蚊蟲種類分組，計算每種蚊子的數量
     mosquito_names = mosquito_df["mosquito_name"].tolist()
     grouped = merged_df.groupby(["photo_time", "mosquito_name"]).size().unstack(fill_value=0)
 
@@ -163,13 +166,16 @@ def generate_chart_for_address(DeviceID):
     # 重設索引以便繪圖
     grouped = grouped.reset_index()
 
-    # 使用 Plotly 繪製圖表，與 generate_interactive_chart 一致
+    # 使用 Plotly 繪製圖表
     fig = px.line(
         grouped,
         x="photo_time",  # X 軸為時間
         y=mosquito_names,  # Y 軸為蚊蟲種類數量
         labels={"value": "Count", "photo_time": "Time"},
+        title=f"Device ID: {device_id}",
+        markers=True  # 顯示每個點
     )
+    fig.update_traces(mode="lines+markers")  # 為折線圖添加點
     fig.update_layout(
         xaxis_title="Time",
         yaxis_title="Mosquito Count",
@@ -179,4 +185,5 @@ def generate_chart_for_address(DeviceID):
         height=500,  # 圖表高度
         width=850  # 圖表寬度
     )
+
     return fig.to_html(full_html=False)

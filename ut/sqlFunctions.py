@@ -7,7 +7,7 @@ def connect_to_database():
             host="localhost",       
             user="root",            
             password="",            
-            database="mosquito2"     
+            database="mosquito"     
         )
         return conn
     except mysql.connector.Error as err:
@@ -143,9 +143,7 @@ def get_all_device_addresses():
 
 def get_data_with_device_name(start_time, end_time):
     """
-    根據指定時間範圍，從資料庫中篩選出符合條件的資料。
-    最終返回包含 device_name, device_address, count, m0, m1, m2, m3, m4 的資料。
-    如果沒有找到資料，也會返回 device_id 和 device_address，並將數量設為 0。
+    根據指定時間範圍，計算各設備的蚊子總數和分種類統計。
     """
     conn = connect_to_database()
     if not conn:
@@ -154,7 +152,7 @@ def get_data_with_device_name(start_time, end_time):
     try:
         cursor = conn.cursor(dictionary=True)
         
-        # 找到所有的 device_id 和 device_name
+        # 獲取所有設備的基本信息
         device_query = """
         SELECT device_id, device_name, device_address
         FROM device
@@ -169,45 +167,50 @@ def get_data_with_device_name(start_time, end_time):
             device_name = device["device_name"]
             device_address = device["device_address"] if device["device_address"] else "Unknown"
             
-            # 找到該時間範圍內的 photo_id
-            photo_ids_query = """
-            SELECT photo_id
+            # 在時間範圍內查找 photo_id 和 count
+            photo_query = """
+            SELECT photo_id, count
             FROM photo
             WHERE device_id = %s
             AND photo_time BETWEEN %s AND %s
             """
-            cursor.execute(photo_ids_query, (device_id, start_time, end_time))
-            photo_ids = [row["photo_id"] for row in cursor.fetchall()]
+            cursor.execute(photo_query, (device_id, start_time, end_time))
+            photos = cursor.fetchall()
             
-            if photo_ids:
-                # 找到這些 photo_id 在 seg_photo 中的 mosquito_id
+            count = 0  # 預設總數為 0
+            m_counts = {"m0": 0, "m1": 0, "m2": 0, "m3": 0, "m4": 0}
+
+            if photos:
+                # 提取所有 photo_id
+                photo_ids = [photo["photo_id"] for photo in photos]
+
+                # 查找 seg_photo 中符合條件的記錄
                 seg_photo_query = """
-                SELECT mosquito_id
+                SELECT mosquito_id, SUM(new) AS new_count
                 FROM seg_photo
                 WHERE photo_id IN (%s)
+                GROUP BY mosquito_id
                 """ % ','.join(['%s'] * len(photo_ids))
                 cursor.execute(seg_photo_query, photo_ids)
                 seg_photo_results = cursor.fetchall()
-                
-                # 計算 m0~m4 和 count
-                m_counts = {"m0": 0, "m1": 0, "m2": 0, "m3": 0, "m4": 0}
+
+                # 計算總數和分種類數量
                 for result in seg_photo_results:
                     mosquito_id = result["mosquito_id"]
+                    new_count = result["new_count"]
+                    count += new_count  # 累加總數
                     if mosquito_id in ["0", "1", "2", "3", "4"]:
-                        m_counts[f"m{mosquito_id}"] += 1
-                
-                count = len(seg_photo_results)
+                        m_counts[f"m{mosquito_id}"] += new_count
             else:
-                # 如果沒有資料，設置所有計數為 0
-                m_counts = {"m0": 0, "m1": 0, "m2": 0, "m3": 0, "m4": 0}
-                count = 0
+                # 無數據情況下 count 和 m_counts 都保持為 0
+                pass
 
-            # 添加結果到列表
+            # 添加結果到列表，保持原始名稱
             results.append({
                 "device_id": device_id,
                 "device_name": device_name,
                 "device_address": device_address,
-                "count": count,
+                "count": count,  # 使用原始名稱
                 **m_counts
             })
         

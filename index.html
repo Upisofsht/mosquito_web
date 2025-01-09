@@ -26,7 +26,6 @@
     </div>
 </body>
 <script src="/js/mapFunctions.js"></script>
-<script src="/js/chart.js"></script>
 <script>
     const map = L.map('map', {
     center: [23.7, 121], // 台灣中心地圖
@@ -50,7 +49,6 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         map.invalidateSize(); // 刷新地圖大小
     });
 
-    fetchAllAddressesAndRenderMarkers(map);
 
     // 初始化控制項（時間選擇器 + 下拉式選單）
     initControls(map, (startTime, endTime) => {

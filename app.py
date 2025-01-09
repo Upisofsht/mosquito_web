@@ -78,7 +78,6 @@ def get_chart_for_address():
         return jsonify({"error": "Missing address parameter"}), 400
 
     chart_html = generate_chart_for_address(id)
-    print("chart html: ", chart_html)
     if chart_html:
         return jsonify({"chart_html": chart_html})
     else:
