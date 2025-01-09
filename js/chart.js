@@ -1,6 +1,6 @@
 function fetchChartForAddress(address) {
     console.log(`Fetching chart for address: ${address}`);
-    fetch(`http://127.0.0.1:5000/api/chart-for-address?address=${encodeURIComponent(address)}`)
+    fetch(`http://120.126.17.57:5001/api/chart-for-address?address=${encodeURIComponent(address)}`)
         .then(response => response.json())
         .then(data => {
             if (data.chart_html) {

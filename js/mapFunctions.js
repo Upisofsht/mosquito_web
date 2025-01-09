@@ -97,7 +97,7 @@ function createCustomIconWithCount(count, color) {
 }
 
 function fetchAllAddressesAndRenderMarkers(map) {
-    fetch('http://127.0.0.1:5000/api/all-address')
+    fetch('http://120.126.17.57:5001/api/all-address')
         .then(response => response.json())
         .then(data => {
             if (data.error) {
@@ -124,7 +124,7 @@ function fetchAllAddressesAndRenderMarkers(map) {
                         const chartContainerId = `chart-container-${address}`;
                         const chartContainer = document.getElementById(chartContainerId);
 
-                        fetch(`http://127.0.0.1:5000/api/chart-for-address?address=${encodeURIComponent(address)}`)
+                        fetch(`http://120.126.17.57:5001/api/chart-for-address?address=${encodeURIComponent(address)}`)
                             .then(response => response.json())
                             .then(data => {
                                 if (data.chart_html) {
@@ -312,42 +312,32 @@ function initControls(map, onTimeRangeChange, onFilterChange) {
 }
 
 
-
-// 獲取預設的時間
 function getDefaultStartTime() {
     const now = new Date();
-    now.setHours(now.getHours() - 24, 0, 0, 0); // 設為整點
-    return now.toISOString().slice(0, 16);
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 前一天的時間
+    return oneDayAgo.toISOString().slice(0, 16); // 格式化為 YYYY-MM-DDTHH:mm
 }
 
 function getDefaultEndTime() {
-    const now = new Date();
-    now.setMinutes(0, 0, 0); // 清除秒數和毫秒，保證整分
-    return now.toISOString().slice(0, 16);
+    const now = new Date(); // 現在時間
+    return now.toISOString().slice(0, 16); // 格式化為 YYYY-MM-DDTHH:mm
 }
 
-function getJanuaryFirstTime() {
-    const now = new Date();
-    const januaryFirst = new Date(now.getFullYear(), 0, 1, 8, 0, 0);
-    return januaryFirst.toISOString().slice(0, 16); // 返回 YYYY-MM-DDTHH:mm 格式
-}
-
-function getJanuarySecondTime() {
-    const now = new Date();
-    const januarySecond = new Date(now.getFullYear(), 0, 2, 8, 0, 0);
-    return januarySecond.toISOString().slice(0, 16); // 返回 YYYY-MM-DDTHH:mm 格式
-}
 
 function fetchDataByTimeAndRenderMarkers(startTime, endTime, map) {
+    
     const formatDateToSQLFormat = (date) => {
-        const isoDate = new Date(date);
-        return isoDate.toISOString().replace(/[-:T]/g, '').slice(0, 14);
+        const localDate = new Date(date);
+        localDate.setHours(localDate.getHours() + 16);
+        return localDate.toISOString().replace(/[-:T]/g, '').slice(0, 14);
     };
 
     const formattedStartTime = formatDateToSQLFormat(startTime);
     const formattedEndTime = formatDateToSQLFormat(endTime);
 
-    fetch(`http://127.0.0.1:5000/api/data-by-time?start_time=${formattedStartTime}&end_time=${formattedEndTime}`)
+    console.log("end: ", formattedEndTime)
+
+    fetch(`http://120.126.17.57:5001/api/data-by-time?start_time=${formattedStartTime}&end_time=${formattedEndTime}`)
         .then(response => response.json())
         .then(data => {
             renderMarkers(data, map); // 渲染標記
@@ -369,7 +359,7 @@ function renderMarkers(data, map) {
     });
 
     data.forEach(item => {
-        const [lat, lng] = item.photo_address.split(',').map(coord => parseFloat(coord.trim()));
+        const [lat, lng] = item.device_address.split(',').map(coord => parseFloat(coord.trim()));
 
         if (!isNaN(lat) && !isNaN(lng)) {
             const mosquitoCount = currentFilter === 'all' 
@@ -387,18 +377,18 @@ function renderMarkers(data, map) {
             // 更新 Popup 顯示多出的 device_name
             marker.bindPopup(`
                 <strong>Device Name:</strong> ${item.device_name}<br>
-                <strong>Photo Address:</strong> ${item.photo_address}<br>
+                <strong>Photo Address:</strong> ${item.device_address}<br>
                 <strong>Total Count:</strong> ${item.count}<br>
                 <strong>m0:</strong> ${item.m0}, <strong>m1:</strong> ${item.m1}, <strong>m2:</strong> ${item.m2}, <strong>m3:</strong> ${item.m3}, <strong>m4:</strong> ${item.m4}<br>
-                <div id="chart-container-${item.photo_address}">
+                <div id="chart-container-${item.device_address}">
                     Loading chart...
                 </div>
             `);
             marker.on('popupopen', function () {
-                const chartContainerId = `chart-container-${item.photo_address}`;
+                const chartContainerId = `chart-container-${item.device_address}`;
                 const chartContainer = document.getElementById(chartContainerId);
 
-                fetch(`http://127.0.0.1:5000/api/chart-for-address?address=${encodeURIComponent(item.photo_address)}`)
+                fetch(`http://120.126.17.57:5001/api/chart-for-id?id=${encodeURIComponent(item.device_id)}`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.chart_html) {

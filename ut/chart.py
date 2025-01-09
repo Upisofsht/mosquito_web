@@ -19,7 +19,7 @@ def select(query, params=None):
             host="localhost",
             user="root",
             password="",
-            database="mosquito"
+            database="mosquito2"
         )
         cursor = conn.cursor(dictionary=True)  # 返回字典格式的結果
 
@@ -121,12 +121,14 @@ def generate_last_24h_chart():
 
     return chart_path
 
-def generate_chart_for_address(address):
+def generate_chart_for_address(DeviceID):
     # 獲取與指定地址相關的資料
+    print("Device_id: ", DeviceID)
     photo_data = select(
-        "SELECT photo_id, photo_time, count FROM photo WHERE photo_address = %s ORDER BY CAST(photo_id AS UNSIGNED) ASC;",
-        (address,)
+        "SELECT photo_id, photo_time, count FROM photo WHERE device_id = %s ORDER BY CAST(photo_id AS UNSIGNED) ASC;",
+        (DeviceID,)
     )
+    print("photo_data: ", photo_data)
     mosquito_data = select("SELECT mosquito_id, mosquito_name FROM mosquito;")
     seg_photo_data = select("SELECT photo_id, mosquito_id FROM seg_photo;")
 

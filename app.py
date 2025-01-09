@@ -56,6 +56,7 @@ def get_data_by_time():
     if not start_time or not end_time:
         return jsonify({"error": "Missing start_time or end_time"}), 400
 
+    print("start: ", start_time)
     results = sqlFunc.get_data_with_device_name(start_time, end_time)
     if results:
         return jsonify(results)
@@ -64,19 +65,20 @@ def get_data_by_time():
     
 @app.route('/api/all-address', methods=['GET'])
 def get_all_addresses():
-    results = sqlFunc.get_all_photo_addresses()
+    results = sqlFunc.get_all_device_addresses()
     if results:
         return jsonify(results)
     else:
         return jsonify({"error": "No addresses found"}), 404
 
-@app.route('/api/chart-for-address', methods=['GET'])
+@app.route('/api/chart-for-id', methods=['GET'])
 def get_chart_for_address():
-    address = request.args.get('address')
-    if not address:
+    id = request.args.get('id')
+    if not id:
         return jsonify({"error": "Missing address parameter"}), 400
 
-    chart_html = generate_chart_for_address(address)
+    chart_html = generate_chart_for_address(id)
+    print("chart html: ", chart_html)
     if chart_html:
         return jsonify({"chart_html": chart_html})
     else:
@@ -84,4 +86,4 @@ def get_chart_for_address():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port='5001')

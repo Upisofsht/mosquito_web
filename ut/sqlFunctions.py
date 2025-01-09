@@ -7,7 +7,7 @@ def connect_to_database():
             host="localhost",       
             user="root",            
             password="",            
-            database="mosquito"     
+            database="mosquito2"     
         )
         return conn
     except mysql.connector.Error as err:
@@ -116,10 +116,9 @@ def get_data_by_time(start_time, end_time):
         cursor.close()
         conn.close()
         
-def get_all_photo_addresses():
+def get_all_device_addresses():
     """
-    從 device 表中獲取所有 device_id，並查詢每個 device_id 最新的 photo_id，
-    然後返回這些 photo_address 的列表。
+    從 device 表中獲取所有 device_address。
     """
     conn = connect_to_database()
     if not conn:
@@ -127,39 +126,14 @@ def get_all_photo_addresses():
 
     try:
         cursor = conn.cursor(dictionary=True)
-        
-        # 從 device 表中獲取所有 device_id
-        device_query = "SELECT device_id FROM device"
-        cursor.execute(device_query)
-        devices = cursor.fetchall()
-        
-        if not devices:
-            return []
 
-        addresses = []
-        
-        for device in devices:
-            device_id = device["device_id"]
-            
-            # 查詢該 device_id 最新的 photo_id 和對應的 photo_address
-            photo_query = """
-            SELECT photo_address
-            FROM photo
-            WHERE device_id = %s
-            AND photo_time = (
-                SELECT MAX(photo_time)
-                FROM photo
-                WHERE device_id = %s
-            )
-            LIMIT 1
-            """
-            cursor.execute(photo_query, (device_id, device_id))
-            photo_result = cursor.fetchone()
-            
-            if photo_result and photo_result["photo_address"]:
-                addresses.append(photo_result["photo_address"])
+        # 從 device 表中直接獲取 device_address
+        query = "SELECT device_address FROM device WHERE device_address IS NOT NULL"
+        cursor.execute(query)
+        results = cursor.fetchall()
 
-        return addresses
+        # 返回所有 device_address
+        return [row["device_address"] for row in results]
     except mysql.connector.Error as err:
         print(f"SQL Error: {err}")
         return []
@@ -167,12 +141,11 @@ def get_all_photo_addresses():
         cursor.close()
         conn.close()
 
-
 def get_data_with_device_name(start_time, end_time):
     """
     根據指定時間範圍，從資料庫中篩選出符合條件的資料。
-    最終返回包含 device_name, photo_address, count, m0, m1, m2, m3, m4 的資料。
-    如果沒有找到資料，也會返回 device_id 和 photo_address，並將數量設為 0。
+    最終返回包含 device_name, device_address, count, m0, m1, m2, m3, m4 的資料。
+    如果沒有找到資料，也會返回 device_id 和 device_address，並將數量設為 0。
     """
     conn = connect_to_database()
     if not conn:
@@ -183,7 +156,7 @@ def get_data_with_device_name(start_time, end_time):
         
         # 找到所有的 device_id 和 device_name
         device_query = """
-        SELECT device_id, device_name
+        SELECT device_id, device_name, device_address
         FROM device
         """
         cursor.execute(device_query)
@@ -194,25 +167,8 @@ def get_data_with_device_name(start_time, end_time):
         for device in devices:
             device_id = device["device_id"]
             device_name = device["device_name"]
+            device_address = device["device_address"] if device["device_address"] else "Unknown"
             
-            # 找到該 device_id 中最新的 photo_address
-            photo_query = """
-            SELECT photo_address
-            FROM photo
-            WHERE device_id = %s
-            AND photo_time = (
-                SELECT MAX(photo_time)
-                FROM photo
-                WHERE device_id = %s
-            )
-            LIMIT 1
-            """
-            cursor.execute(photo_query, (device_id, device_id))
-            photo_result = cursor.fetchone()
-            
-            # 如果沒有地址，跳過該設備
-            photo_address = photo_result["photo_address"] if photo_result else "Unknown"
-
             # 找到該時間範圍內的 photo_id
             photo_ids_query = """
             SELECT photo_id
@@ -250,7 +206,7 @@ def get_data_with_device_name(start_time, end_time):
             results.append({
                 "device_id": device_id,
                 "device_name": device_name,
-                "photo_address": photo_address,
+                "device_address": device_address,
                 "count": count,
                 **m_counts
             })
