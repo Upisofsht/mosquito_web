@@ -278,8 +278,6 @@ function fetchDataByTimeAndRenderMarkers(startTime, endTime, map) {
     const formattedStartTime = formatDateToSQLFormat(startTime);
     const formattedEndTime = formatDateToSQLFormat(endTime);
 
-    console.log("end: ", formattedEndTime)
-
     fetch(`http://127.0.0.1:5001/api/data-by-time?start_time=${formattedStartTime}&end_time=${formattedEndTime}`)
         .then(response => response.json())
         .then(data => {
@@ -307,7 +305,9 @@ function renderMarkers(data, map) {
         const [lat, lng] = item.device_address.split(',').map(coord => parseFloat(coord.trim()));
 
         if (!isNaN(lat) && !isNaN(lng)) {
-            const mosquitoCount = parseInt(item.count, 10); // 總數轉換為整數
+            const mosquitoCount = currentFilter === 'all' 
+                ? parseInt(item.count, 10) // 將總數轉換為整數
+                : parseInt(item[currentFilter], 10); // 將對應的蚊蟲類型數量轉換為整數
             const color = getColor(mosquitoCount); // 根據 count 設定顏色
 
             // 創建自定義圖標並添加到地圖上
