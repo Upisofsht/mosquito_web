@@ -155,7 +155,7 @@ function initControls(map, onTimeRangeChange, onFilterChange) {
                         <option value="m0">H</option>
                         <option value="m1">IG</option>
                         <option value="m2">W</option>
-                        <option value="m3">WB</option>
+                        <option value="m3">WH</option>
                         <option value="m4">GR</option>
                     </select>
                     </div>
