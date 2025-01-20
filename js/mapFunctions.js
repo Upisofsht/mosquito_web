@@ -317,7 +317,7 @@ function renderMarkers(data, map) {
 
             // 綁定彈窗
             marker.bindPopup(`
-                <div style="max-width: 1000px; padding: 10px; font-size: 14px; text-align: center; margin: 0 auto;">
+                <div style="max-width: 1000px; padding: 5px; font-size: 14px; text-align: center; margin: 0 auto;">
                     <h3 style="margin-bottom: 10px;">Current Data</h3>
                     <p><strong>Device Name:</strong> ${item.device_name}</p>
                     <p><strong>Photo Address:</strong> ${item.device_address}</p>
