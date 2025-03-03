@@ -182,8 +182,8 @@ def generate_chart_for_address(device_id):
         template="plotly_white",
         dragmode="pan",  # 設置預設模式為平移
         margin=dict(l=50, r=50, t=50, b=50),  # 邊距
-        height=500,  # 圖表高度
-        width=850  # 圖表寬度
+        height=300,  # 圖表高度
+        width=700  # 圖表寬度
     )
 
     return fig.to_html(full_html=False)
