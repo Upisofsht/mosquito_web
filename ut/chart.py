@@ -125,40 +125,51 @@ def generate_chart_for_address(device_id):
     """
     根據指定的 device_id，生成蚊蟲種類數量的時間線圖表。
     """
-    # 獲取 photo 資料
-    photo_data = select(
-        """
-        SELECT photo_id, photo_time, count
-        FROM photo
+    # 查詢裝置名稱（使用參數化查詢並透過字典存取）
+    device_result = select("SELECT device_name FROM device WHERE device_id = %s", (device_id,))
+    if not device_result:
+        return None
+    device_name = device_result[0]["device_name"]
+
+    # 查詢 photo 資料（只取得 photo_id 與 photo_time）
+    photo_data = select("""
+        SELECT photo_id, photo_time
+        FROM photo 
         WHERE device_id = %s
         ORDER BY CAST(photo_id AS UNSIGNED) ASC;
-        """,
-        (device_id,)
-    )
-    mosquito_data = select("SELECT mosquito_id, mosquito_name FROM mosquito;")
-    seg_photo_data = select("SELECT photo_id, mosquito_id FROM seg_photo;")
+    """, (device_id,))
 
-    if not photo_data or not mosquito_data:
-        # 如果 photo 或 mosquito 資料為空，返回空圖表
+    # 查詢蚊子名稱
+    mosquito_data = select("SELECT mosquito_id, mosquito_name FROM mosquito;")
+    
+    # 查詢 seg_photo 資料，包含 new 欄位
+    seg_photo_data = select("SELECT photo_id, mosquito_id, new FROM seg_photo;")
+
+    if not photo_data or not mosquito_data or not seg_photo_data:
+        # 如果資料不足，返回空圖表
         return None
 
     # 將資料轉換為 DataFrame
-    photo_df = pd.DataFrame(photo_data, columns=["photo_id", "photo_time", "count"])
+    photo_df = pd.DataFrame(photo_data, columns=["photo_id", "photo_time"])
     mosquito_df = pd.DataFrame(mosquito_data, columns=["mosquito_id", "mosquito_name"])
-    seg_photo_df = pd.DataFrame(seg_photo_data, columns=["photo_id", "mosquito_id"])
+    seg_photo_df = pd.DataFrame(seg_photo_data, columns=["photo_id", "mosquito_id", "new"])
 
-    # 確保 photo_time 是 datetime 格式
+    # 確保 photo_time 為 datetime 格式
     photo_df["photo_time"] = pd.to_datetime(photo_df["photo_time"], format="%Y%m%d%H%M%S")
 
-    # 合併資料
-    merged_df = photo_df.merge(seg_photo_df, on="photo_id", how="left")
+    # 過濾 seg_photo，只保留 new != 0 的記錄
+    filtered_seg_photo = seg_photo_df[seg_photo_df["new"] != 0]
+    merged_df = photo_df.merge(filtered_seg_photo, on="photo_id", how="left")
+    # 對於完全沒有 new != 0 的 photo_id，填補 mosquito_id 為 -1
+    merged_df.fillna({"mosquito_id": -1}, inplace=True)
+    
+    # 合併蚊子名稱，若無資料則標記為 "No Mosquito"
     merged_df = merged_df.merge(mosquito_df, on="mosquito_id", how="left")
+    merged_df["mosquito_name"].fillna("No Mosquito", inplace=True)
 
-    # 按時間和蚊蟲種類分組，計算每種蚊子的數量
+    # 按時間與蚊子種類分組，計算每種蚊子的數量
     mosquito_names = mosquito_df["mosquito_name"].tolist()
     grouped = merged_df.groupby(["photo_time", "mosquito_name"]).size().unstack(fill_value=0)
-
-    # 確保所有蚊蟲種類的列存在
     for mosquito in mosquito_names:
         if mosquito not in grouped.columns:
             grouped[mosquito] = 0
@@ -170,20 +181,21 @@ def generate_chart_for_address(device_id):
     fig = px.line(
         grouped,
         x="photo_time",  # X 軸為時間
-        y=mosquito_names,  # Y 軸為蚊蟲種類數量
+        y=mosquito_names,  # Y 軸為各蚊子種類的數量
         labels={"value": "Count", "photo_time": "Time"},
-        title=f"Device ID: {device_id}",
-        markers=True  # 顯示每個點
+        title=f"{device_name} Mosquito Count History",
+        markers=True  # 顯示每個數據點
     )
     fig.update_traces(mode="lines+markers")  # 為折線圖添加點
     fig.update_layout(
         xaxis_title="Time",
         yaxis_title="Mosquito Count",
         template="plotly_white",
-        dragmode="pan",  # 設置預設模式為平移
-        margin=dict(l=50, r=50, t=50, b=50),  # 邊距
+        dragmode="pan",  # 預設平移模式
+        margin=dict(l=50, r=50, t=50, b=50),  # 邊距設定
         height=300,  # 圖表高度
-        width=700  # 圖表寬度
+        width=700   # 圖表寬度
     )
 
     return fig.to_html(full_html=False)
+
