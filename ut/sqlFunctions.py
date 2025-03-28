@@ -7,7 +7,7 @@ def connect_to_database():
             host="localhost",       
             user="root",            
             password="",            
-            database="mosquito"     
+            database="mosqui"     
         )
         return conn
     except mysql.connector.Error as err:

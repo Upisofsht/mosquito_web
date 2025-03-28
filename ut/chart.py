@@ -19,7 +19,7 @@ def select(query, params=None):
             host="localhost",
             user="root",
             password="",
-            database="mosquito"
+            database="mosqui"
         )
         cursor = conn.cursor(dictionary=True)  # 返回字典格式的結果
 
@@ -121,9 +121,9 @@ def generate_last_24h_chart():
 
     return chart_path
 
-def generate_chart_for_address(device_id):
+def generate_chart_for_address(device_id, start_time, end_time):
     """
-    根據指定的 device_id，生成蚊蟲種類數量的時間線圖表。
+    根據指定的 device_id 和時間範圍（start_time 到 end_time），生成蚊蟲種類數量的時間線圖表。
     """
     # 查詢裝置名稱（使用參數化查詢並透過字典存取）
     device_result = select("SELECT device_name FROM device WHERE device_id = %s", (device_id,))
@@ -132,8 +132,8 @@ def generate_chart_for_address(device_id):
     device_name = device_result[0]["device_name"]
 
     # 查詢 photo 資料（只取得 photo_id 與 photo_time）
-    photo_data = select("""
-        SELECT photo_id, photo_time
+    photo_data = select(""" 
+        SELECT photo_id, photo_time 
         FROM photo 
         WHERE device_id = %s
         ORDER BY CAST(photo_id AS UNSIGNED) ASC;
@@ -141,7 +141,7 @@ def generate_chart_for_address(device_id):
 
     # 查詢蚊子名稱
     mosquito_data = select("SELECT mosquito_id, mosquito_name FROM mosquito;")
-    
+
     # 查詢 seg_photo 資料，包含 new 欄位
     seg_photo_data = select("SELECT photo_id, mosquito_id, new FROM seg_photo;")
 
@@ -157,12 +157,20 @@ def generate_chart_for_address(device_id):
     # 確保 photo_time 為 datetime 格式
     photo_df["photo_time"] = pd.to_datetime(photo_df["photo_time"], format="%Y%m%d%H%M%S")
 
+    # 轉換 start_time 和 end_time 為 datetime 格式
+    start_time = pd.to_datetime(start_time, format="%Y%m%d%H%M%S")
+    end_time = pd.to_datetime(end_time, format="%Y%m%d%H%M%S")
+
+    # 篩選照片時間在 start_time 和 end_time 範圍內的資料
+    photo_df = photo_df[(photo_df["photo_time"] >= start_time) & (photo_df["photo_time"] <= end_time)]
+
     # 過濾 seg_photo，只保留 new != 0 的記錄
     filtered_seg_photo = seg_photo_df[seg_photo_df["new"] != 0]
     merged_df = photo_df.merge(filtered_seg_photo, on="photo_id", how="left")
+
     # 對於完全沒有 new != 0 的 photo_id，填補 mosquito_id 為 -1
     merged_df.fillna({"mosquito_id": -1}, inplace=True)
-    
+
     # 合併蚊子名稱，若無資料則標記為 "No Mosquito"
     merged_df = merged_df.merge(mosquito_df, on="mosquito_id", how="left")
     merged_df["mosquito_name"].fillna("No Mosquito", inplace=True)
@@ -183,7 +191,7 @@ def generate_chart_for_address(device_id):
         x="photo_time",  # X 軸為時間
         y=mosquito_names,  # Y 軸為各蚊子種類的數量
         labels={"value": "Count", "photo_time": "Time"},
-        title=f"{device_name} Mosquito Count History",
+        title=f"{device_name} Mosquito Count History ({start_time} to {end_time})",
         markers=True  # 顯示每個數據點
     )
     fig.update_traces(mode="lines+markers")  # 為折線圖添加點
@@ -198,4 +206,3 @@ def generate_chart_for_address(device_id):
     )
 
     return fig.to_html(full_html=False)
-

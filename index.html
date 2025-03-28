@@ -13,6 +13,9 @@
             margin-top: 20px !important;
             margin-left: 12px !important;
         }
+        .leaflet-popup-content-wrapper .leaflet-popup-content > div {
+            display: unset !important; /* 移除 display 屬性 */
+        }
     </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -28,8 +31,8 @@
 <script src="/js/mapFunctions.js"></script>
 <script>
     const map = L.map('map', {
-    center: [23.7, 121], // 台灣中心地圖
-    zoom: 7,             // 初始縮放層級
+    center: [22.6273, 120.3014], // 台灣中心地圖
+    zoom: 10,             // 初始縮放層級
     minZoom: 3,          // 最小縮放層級
     maxZoom: 18,         // 最大縮放層級
     maxBounds: [         // 設定地圖拖動的最大範圍
