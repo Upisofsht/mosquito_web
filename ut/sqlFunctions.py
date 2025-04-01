@@ -186,23 +186,49 @@ def get_data_with_device_name(start_time, end_time):
 
                 # 查找 seg_photo 中符合條件的記錄
                 seg_photo_query = """
-                SELECT mosquito_id, SUM(new) AS new_count
-                FROM seg_photo
-                WHERE photo_id IN (%s)
-                GROUP BY mosquito_id
+                SELECT 
+                    sp.mosquito_id, 
+                    SUM(sp.new) AS new_count,
+                    mt.mosquito_type,
+                    SUM(CASE WHEN mt.mosquito_type = 'HG' THEN sp.new ELSE 0 END) as hg_count,
+                    SUM(CASE WHEN mt.mosquito_type = 'AG' THEN sp.new ELSE 0 END) as ag_count
+                FROM seg_photo sp
+                LEFT JOIN mosquitotype mt ON sp.isAedes = mt.isAedes
+                WHERE sp.photo_id IN (%s)
+                GROUP BY sp.mosquito_id, mt.mosquito_type
                 """ % ','.join(['%s'] * len(photo_ids))
                 cursor.execute(seg_photo_query, photo_ids)
                 seg_photo_results = cursor.fetchall()
 
                 # 計算總數和分種類數量
+                hg_count = 0
+                ag_count = 0
                 for result in seg_photo_results:
                     mosquito_id = result["mosquito_id"]
                     new_count = result["new_count"]
                     count += new_count  # 累加總數
                     if mosquito_id in ["0", "1", "2", "3", "4"]:
                         m_counts[f"m{mosquito_id}"] += new_count
+                    if result["mosquito_type"] == "HG":
+                        hg_count += new_count
+                    elif result["mosquito_type"] == "AG":
+                        ag_count += new_count
+
+                # 獲取 mosquito_type
+                mosquito_type_query = """
+                SELECT DISTINCT mt.mosquito_type
+                FROM seg_photo sp
+                LEFT JOIN mosquitotype mt ON sp.isAedes = mt.isAedes
+                WHERE sp.photo_id IN (%s)
+                LIMIT 1
+                """ % ','.join(['%s'] * len(photo_ids))
+                cursor.execute(mosquito_type_query, photo_ids)
+                mosquito_type_result = cursor.fetchone()
+                mosquito_type = mosquito_type_result["mosquito_type"] if mosquito_type_result else "N/A"
             else:
-                # 無數據情況下 count 和 m_counts 都保持為 0
+                # 無數據情況下所有計數都保持為 0
+                hg_count = 0
+                ag_count = 0
                 pass
 
             # 添加結果到列表，保持原始名稱
@@ -211,6 +237,8 @@ def get_data_with_device_name(start_time, end_time):
                 "device_name": device_name,
                 "device_address": device_address,
                 "count": count,  # 使用原始名稱
+                "hg_count": hg_count,
+                "ag_count": ag_count,
                 **m_counts
             })
         

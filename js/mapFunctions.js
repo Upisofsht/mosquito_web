@@ -274,9 +274,12 @@ function renderMarkers(data, map, formattedStartTime, formattedEndTime) {
                         <p><strong>Device Name:</strong> ${item.device_name}</p>
                         <p><strong>Photo Address:</strong> ${item.device_address}</p>
                         <p><strong>Total Count:</strong> ${item.count}</p>
-                        <p><strong>Type Breakdown:</strong> 
+                        <p style="display: none;"><strong>Type Breakdown:</strong> 
                             H: ${item.m0}, IG: ${item.m1}, 
                             W: ${item.m2}, WH: ${item.m3}, GR: ${item.m4}
+                        </p>
+                        <p><strong>Mosquito Types:</strong> 
+                            HG: ${item.hg_count}, AG: ${item.ag_count}
                         </p>
                         <hr style="border: 1px solid #ccc; margin: 10px 0;">
                         <h3 style="margin-bottom: 10px;">Historical Trend</h3>
