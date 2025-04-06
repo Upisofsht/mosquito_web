@@ -246,15 +246,6 @@ function renderMarkers(data, map, formattedStartTime, formattedEndTime) {
         return;
     }
 
-    // 英文到中文的蚊子名稱映射表
-    const MOSQUITO_NAME_MAPPING = {
-        "IG": "IG埃及斑蚊",
-        "H": "H熱帶家蚊",
-        "W": "W白線斑蚊",
-        "WH": "WH白腹斑蚊",
-        "GR": "GR地下家蚊"
-    };
-
     map.eachLayer((layer) => {
         if (layer instanceof L.Marker) {
             map.removeLayer(layer);
@@ -274,18 +265,18 @@ function renderMarkers(data, map, formattedStartTime, formattedEndTime) {
             const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
 
             marker.bindPopup(`
-                <div style="max-width: 1000px; padding: 5px; font-size: 14px; text-align: left; margin: 0 auto; align-items: center; gap: 20px;">
+                <div style="max-width: 1000px; padding: 5px; font-size: 14px; text-align: left; margin: 0 auto; display: flex; align-items: center; gap: 20px;">
                     <div style="flex-shrink: 0;">
                         <button id="toggle-view-${item.device_address}" style="position: absolute; top: 10px; left: 10px; z-index: 10; background-color: #007bff; color: white; padding: 5px 10px; border-radius: 5px;">
                             裝置照片
                         </button>
-                        <h3 style="display: flex; justify-content: center;">Current Data</h3>
+                        <h3 style="display: flex;justify-content: center; ">Current Data</h3>
                         <p><strong>Device Name:</strong> ${item.device_name}</p>
                         <p><strong>Photo Address:</strong> ${item.device_address}</p>
-                        <p><strong>目前時間範圍蚊子總數量:</strong> ${item.count} 隻</p>
-                        <p><strong>種類統計:</strong> 
-                            H熱帶家蚊: ${item.m0} 隻, IG埃及斑蚊: ${item.m1} 隻, 
-                            W白線斑蚊: ${item.m2} 隻, WH白腹斑蚊: ${item.m3} 隻, GR地下家蚊: ${item.m4} 隻
+                        <p><strong>Total Count:</strong> ${item.count}</p>
+                        <p style="display: none;"><strong>Type Breakdown:</strong> 
+                            H: ${item.m0}, IG: ${item.m1}, 
+                            W: ${item.m2}, WH: ${item.m3}, GR: ${item.m4}
                         </p>
                         <p><strong>Mosquito Types:</strong> 
                             HG: ${item.hg_count}, AG: ${item.ag_count}
@@ -346,109 +337,27 @@ function renderMarkers(data, map, formattedStartTime, formattedEndTime) {
                                 return response.json();
                             })
                             .then(photoData => {
-                                console.log("photoData: ", photoData);
                                 if (photoData && photoData.photos) {
-                                    // 對照片按時間從最新到最舊排序
-                                    photoData.photos.sort((a, b) => {
-                                        const timeA = new Date(
-                                            parseInt(a.time.slice(0, 4)),  // 年
-                                            parseInt(a.time.slice(4, 6)) - 1,  // 月 (0-11)
-                                            parseInt(a.time.slice(6, 8)),  // 日
-                                            parseInt(a.time.slice(8, 10)), // 時
-                                            parseInt(a.time.slice(10, 12)), // 分
-                                            parseInt(a.time.slice(12, 14))  // 秒
-                                        );
-                                        const timeB = new Date(
-                                            parseInt(b.time.slice(0, 4)),
-                                            parseInt(b.time.slice(4, 6)) - 1,
-                                            parseInt(b.time.slice(6, 8)),
-                                            parseInt(b.time.slice(8, 10)),
-                                            parseInt(b.time.slice(10, 12)),
-                                            parseInt(b.time.slice(12, 14))
-                                        );
-                                        return timeB - timeA; // 從最新到最舊排序
-                                    });
-
                                     let photoContent = '<h4>歷史照片列表</h4><ul>';
                                     photoData.photos.forEach(photo => {
-                                        console.log("photo.mosquito_types: ", photo.mosquito_types);
-                                        console.log("photo.current_mosquito_types: ", photo.mos);
                                         // 檢查 photo.path 是否為完整 URL
                                         let photoUrl;
                                         if (photo.path.startsWith('http://') || photo.path.startsWith('https://')) {
+                                            // 如果是完整 URL，直接使用並修剪多餘斜杠
                                             photoUrl = photo.path.replace(/\/+/g, '/');
                                         } else {
-                                            const base = BASE_URL.replace(/\/+$/, '');
-                                            const path = photo.path.replace(/^\/+/, '');
-                                            photoUrl = `${base}/${path}`;
+                                            // 如果是相對路徑，與 BASE_URL 拼接
+                                            const base = BASE_URL.replace(/\/+$/, ''); // 移除 BASE_URL 結尾的斜杠
+                                            const path = photo.path.replace(/^\/+/, ''); // 移除 photo.path 開頭的斜杠
+                                            photoUrl = `${base}/${path}`; // 拼接時確保只有一個斜杠
                                         }
-                                        console.log('Attempting to load image:', photoUrl);
-
-                                        // 將「新增」蚊子種類從英文轉換為中文
-                                        const mosquitoTypesZh = photo.mosquito_types && Array.isArray(photo.mosquito_types) 
-                                            ? photo.mosquito_types.map(type => MOSQUITO_NAME_MAPPING[type] || type).join(', ')
-                                            : '無資料';
-
-                                        // 將「目前所有」蚊子種類從英文轉換為中文
-                                        const currentMosquitoTypesZh = photo.current_mosquito_types && Array.isArray(photo.current_mosquito_types)
-                                            ? photo.current_mosquito_types.map(type => MOSQUITO_NAME_MAPPING[type] || type).join(', ')
-                                            : '無資料';
-
-                                        // 使用 photo.count 作為總數量
-                                        const totalMosquitoCount = photo.count || 0;  // 如果 count 不存在，預設為 0
-
-                                        // 生成「新增」蚊子種類未檢測到新蚊子統計
-                                        let mosquitoStats = '';
-                                        if (photo.mosquito_types && photo.mosquito_counts && 
-                                            Array.isArray(photo.mosquito_types) && Array.isArray(photo.mosquito_counts) && 
-                                            photo.mosquito_types.length === photo.mosquito_counts.length && 
-                                            photo.mosquito_types.length > 0) {
-                                            mosquitoStats = photo.mosquito_types.map((type, index) => {
-                                                const count = photo.mosquito_counts[index];
-                                                const typeZh = MOSQUITO_NAME_MAPPING[type] || type;
-                                                return `<p>${typeZh}: ${count} 隻</p>`;
-                                            }).join('');
-                                        } else {
-                                            mosquitoStats = '<p>未檢測到新蚊子</p>';
-                                        }
-
-                                        // 生成「目前所有」蚊子統計
-                                        let currentMosquitoStats = '';
-                                        if (photo.current_mosquito_types && photo.current_mosquito_counts && 
-                                            Array.isArray(photo.current_mosquito_types) && Array.isArray(photo.current_mosquito_counts) && 
-                                            photo.current_mosquito_types.length === photo.current_mosquito_counts.length && 
-                                            photo.current_mosquito_types.length > 0) {
-                                            currentMosquitoStats = photo.current_mosquito_types.map((type, index) => {
-                                                const count = photo.current_mosquito_counts[index];
-                                                const typeZh = MOSQUITO_NAME_MAPPING[type] || type;
-                                                return `<p>${typeZh}: ${count} 隻</p>`;
-                                            }).join('');
-                                        } else {
-                                            currentMosquitoStats = '<p>目前無蚊子</p>';
-                                        }
-
-                                        // 格式化時間
-                                        const formatPhotoTime = (timeStr) => {
-                                            const year = timeStr.slice(0, 4);
-                                            const month = timeStr.slice(4, 6);
-                                            const day = timeStr.slice(6, 8);
-                                            const hour = timeStr.slice(8, 10);
-                                            const minute = timeStr.slice(10, 12);
-                                            const second = timeStr.slice(12, 14);
-                                            return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
-                                        };
-                                        const formattedTime = formatPhotoTime(photo.time);
-
+                                        console.log('Attempting to load image:', photoUrl); // 調試用
                                         photoContent += `
                                             <li style="display: flex; align-items: flex-start; gap: 20px; margin-bottom: 15px;">
                                                 <div style="flex: 1;">
-                                                    <p><strong>拍攝時間:</strong> ${formattedTime}</p>
+                                                    <p><strong>拍攝時間:</strong> ${photo.time}</p>
                                                     <p><strong>位置:</strong> ${photo.location}</p>
-                                                    <p><strong>目前照片蚊子總數量:</strong> ${totalMosquitoCount} 隻</p>
-                                                    <p><strong>目前蚊子種類統計:</strong></p>
-                                                    ${currentMosquitoStats}
-                                                    <p><strong>新增蚊子種類統計:</strong></p>
-                                                    ${mosquitoStats}
+                                                    <p><strong>蚊子種類:</strong> ${photo.mosquito_types.join(', ')}</p>
                                                 </div>
                                                 <div style="flex: 1; text-align: center;">
                                                     <p><strong>照片:</strong></p>
