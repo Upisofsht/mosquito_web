@@ -224,8 +224,6 @@
             fetch('/api/device-health')
                 .then(r => r.json())
                 .then(data => {
-                    // [TEMP][截圖用] 只顯示 TND1 ~ TND10，截完圖請移除此段
-                    data = data.filter(d => /^TND-?(10|[1-9])$/i.test(d.device_name));
                     const tbody  = document.getElementById('health-tbody');
                     const cards  = document.getElementById('health-cards');
 
