@@ -1,13 +1,21 @@
 import mysql.connector
+import os
+
+# 嘗試載入環境變數
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # 資料庫連接函數
 def connect_to_database():
     try:
         conn = mysql.connector.connect(
-            host="localhost",       
-            user="root",            
-            password="",            
-            database="mosqui"     
+            host=os.getenv('DB_HOST', 'localhost'),       
+            user=os.getenv('DB_USER', 'root'),            
+            password=os.getenv('DB_PASSWORD', 'Mos@Root!2024'),            
+            database=os.getenv('DB_NAME', 'mosqui')     
         )
         return conn
     except mysql.connector.Error as err:
@@ -24,25 +32,50 @@ def select(query, params=None):
     """
     conn = None
     try:
-        # 使用資料庫連接
         conn = connect_to_database()
         if not conn:
             print("無法連接到資料庫")
             return None
         
         cursor = conn.cursor(dictionary=True)  # 返回字典格式的結果
-
-        # 執行查詢
         cursor.execute(query, params)
         results = cursor.fetchall()
-
         return results
     except mysql.connector.Error as err:
         print(f"Database Error: {err}")
         return None
     finally:
-        # 關閉連線
-        if conn:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+# 新增通用的 EXECUTE 函數
+def execute(query, params=None):
+    """
+    執行非查詢 SQL 語句（如 INSERT, UPDATE, DELETE）。
+    :param query: SQL 語句
+    :param params: 語句的參數 (tuple)
+    :return: 受影響的行數
+    """
+    conn = None
+    try:
+        conn = connect_to_database()
+        if not conn:
+            print("無法連接到資料庫")
+            return 0
+        
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        conn.commit()  # 提交事務
+        affected_rows = cursor.rowcount
+        return affected_rows
+    except mysql.connector.Error as err:
+        print(f"Database Error: {err}")
+        if conn and conn.is_connected():
+            conn.rollback()  # 發生錯誤時回滾
+        return 0
+    finally:
+        if conn and conn.is_connected():
             cursor.close()
             conn.close()
 
@@ -60,12 +93,14 @@ def get_max_data_by_device():
     SELECT 
         m.data_id,
         p.photo_address,
-        (m.m0 + m.m1 + m.m2 + m.m3 + m.m4) AS count,
+        (m.m0 + m.m1 + m.m2 + m.m3 + m.m4 + m.m5 + m.m6) AS count,
         m.m0,
         m.m1,
         m.m2,
         m.m3,
-        m.m4
+        m.m4,
+        m.m5,
+        m.m6
     FROM 
         data AS m
     JOIN 
@@ -89,12 +124,14 @@ def get_data_by_time(start_time, end_time):
         query = """
         SELECT 
             p.photo_address,
-            SUM(m.m0 + m.m1 + m.m2 + m.m3 + m.m4) AS count,
+            SUM(m.m0 + m.m1 + m.m2 + m.m3 + m.m4 + m.m5 + m.m6) AS count,
             SUM(m.m0) AS m0,
             SUM(m.m1) AS m1,
             SUM(m.m2) AS m2,
             SUM(m.m3) AS m3,
-            SUM(m.m4) AS m4
+            SUM(m.m4) AS m4,
+            SUM(m.m5) AS m5,
+            SUM(m.m6) AS m6
         FROM 
             data AS m
         JOIN 
@@ -115,7 +152,7 @@ def get_data_by_time(start_time, end_time):
     finally:
         cursor.close()
         conn.close()
-        
+
 def get_all_device_addresses():
     """
     從 device 表中獲取所有 device_address。
@@ -126,13 +163,9 @@ def get_all_device_addresses():
 
     try:
         cursor = conn.cursor(dictionary=True)
-
-        # 從 device 表中直接獲取 device_address
         query = "SELECT device_address FROM device WHERE device_address IS NOT NULL"
         cursor.execute(query)
         results = cursor.fetchall()
-
-        # 返回所有 device_address
         return [row["device_address"] for row in results]
     except mysql.connector.Error as err:
         print(f"SQL Error: {err}")
@@ -178,7 +211,7 @@ def get_data_with_device_name(start_time, end_time):
             photos = cursor.fetchall()
             
             count = 0  # 預設總數為 0
-            m_counts = {"m0": 0, "m1": 0, "m2": 0, "m3": 0, "m4": 0}
+            m_counts = {"m0": 0, "m1": 0, "m2": 0, "m3": 0, "m4": 0, "m5": 0, "m6": 0}
 
             if photos:
                 # 提取所有 photo_id
@@ -188,57 +221,32 @@ def get_data_with_device_name(start_time, end_time):
                 seg_photo_query = """
                 SELECT 
                     sp.mosquito_id, 
-                    SUM(sp.new) AS new_count,
-                    mt.mosquito_type,
-                    SUM(CASE WHEN mt.mosquito_type = 'HG' THEN sp.new ELSE 0 END) as hg_count,
-                    SUM(CASE WHEN mt.mosquito_type = 'AG' THEN sp.new ELSE 0 END) as ag_count
+                    SUM(sp.new) AS new_count
                 FROM seg_photo sp
-                LEFT JOIN mosquitotype mt ON sp.isAedes = mt.isAedes
                 WHERE sp.photo_id IN (%s)
-                GROUP BY sp.mosquito_id, mt.mosquito_type
+                GROUP BY sp.mosquito_id
                 """ % ','.join(['%s'] * len(photo_ids))
                 cursor.execute(seg_photo_query, photo_ids)
                 seg_photo_results = cursor.fetchall()
 
                 # 計算總數和分種類數量
-                hg_count = 0
-                ag_count = 0
+                count = 0
+                m_counts = {"m0": 0, "m1": 0, "m2": 0, "m3": 0, "m4": 0, "m5": 0, "m6": 0}
                 for result in seg_photo_results:
                     mosquito_id = result["mosquito_id"]
                     new_count = result["new_count"]
                     count += new_count  # 累加總數
-                    if mosquito_id in ["0", "1", "2", "3", "4"]:
+                    if mosquito_id in ["0", "1", "2", "3", "4", "5", "6"]:
                         m_counts[f"m{mosquito_id}"] += new_count
-                    if result["mosquito_type"] == "HG":
-                        hg_count += new_count
-                    elif result["mosquito_type"] == "AG":
-                        ag_count += new_count
-
-                # 獲取 mosquito_type
-                mosquito_type_query = """
-                SELECT DISTINCT mt.mosquito_type
-                FROM seg_photo sp
-                LEFT JOIN mosquitotype mt ON sp.isAedes = mt.isAedes
-                WHERE sp.photo_id IN (%s)
-                LIMIT 1
-                """ % ','.join(['%s'] * len(photo_ids))
-                cursor.execute(mosquito_type_query, photo_ids)
-                mosquito_type_result = cursor.fetchone()
-                mosquito_type = mosquito_type_result["mosquito_type"] if mosquito_type_result else "N/A"
             else:
-                # 無數據情況下所有計數都保持為 0
-                hg_count = 0
-                ag_count = 0
-                pass
+                count = 0
 
-            # 添加結果到列表，保持原始名稱
+            # 添加結果到列表
             results.append({
                 "device_id": device_id,
                 "device_name": device_name,
                 "device_address": device_address,
-                "count": count,  # 使用原始名稱
-                "hg_count": hg_count,
-                "ag_count": ag_count,
+                "count": count,
                 **m_counts
             })
         

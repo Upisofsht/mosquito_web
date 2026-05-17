@@ -1,2 +1,23 @@
+# IDE
+.vscode/
+.idea/
 
-.codegpt
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 環境變數與敏感資訊
+.env
+.env.local
+.env.*.local
+
+# Log
+*.log
+*.log.*
+app_output.log
+
+# 系統
+.DS_Store
+Thumbs.db

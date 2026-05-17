@@ -29,15 +29,95 @@
     height: 100%; /* 滿高 */
 }
 
-/* 地圖容器樣式 */
+/* 地圖容器樣式（與 #container 直向 flex 並用時請搭配 min-height:0，見 index.html 註解） */
 #map-container {
-    width: 100%; /* 滿寬 */
-    padding: 0; /* 移除內邊距 */
+    width: 100%;
+    padding: 0;
+}
+
+#container > #map-container {
+    flex: 1;
+    min-height: 0;
+    position: relative;
 }
 
 #map {
-    width: 100%; /* 地圖寬度自適應容器 */
-    height: 100%; /* 地圖高度自適應容器 */
+    width: 100%;
+    height: 100%;
+}
+
+/* 頂部工具列：時間、篩選、裝置跳轉 */
+.app-toolbar {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 14px;
+    padding: 10px 12px;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    z-index: 1000;
+}
+.app-toolbar__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #333;
+    margin-right: 4px;
+    align-self: center;
+}
+.app-toolbar__group {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+}
+.app-toolbar__group--grow {
+    flex: 1 1 200px;
+    min-width: 160px;
+}
+.app-toolbar__sublabel {
+    font-size: 11px;
+    color: #666;
+}
+.app-toolbar__time-btn {
+    min-width: 8.5rem;
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    background: #fff;
+    font-size: 13px;
+    text-align: left;
+}
+.app-toolbar__time-btn:focus {
+    outline: 2px solid #2196f3;
+    outline-offset: 1px;
+}
+.app-toolbar__primary {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: #1976d2;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    align-self: flex-end;
+}
+.app-toolbar__primary:hover {
+    background: #1565c0;
+}
+.app-toolbar #mosquito-box,
+.app-toolbar #device-jump {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    min-width: 8rem;
+}
+.app-toolbar #device-jump {
+    width: 100%;
+    max-width: 28rem;
 }
 
 /* 調整 #space */
@@ -75,24 +155,22 @@ html {
     height: 100%; /* 確保根元素高度覆蓋整個視窗 */
 }
 
-/* 手機設備樣式 */
+/* 手機／平板／桌面：在含 #app-toolbar 的地圖頁中，地圖高度由 flex 剩餘空間決定，勿寫死 #map 高度以免頂欄與地圖錯位 */
 @media (max-width: 768px) {
-    #map {
-        height: 300px; /* 手機屏幕高度減小 */
+    #container > #map-container {
+        min-height: 200px;
     }
 }
 
-/* 平板設備樣式 */
 @media (min-width: 769px) and (max-width: 1024px) {
-    #map {
-        height: 400px; /* 平板高度 */
+    #container > #map-container {
+        min-height: 280px;
     }
 }
 
-/* 桌面設備樣式 */
 @media (min-width: 1025px) {
-    #map {
-        height: 950px; /* 桌面高度更大 */
+    #container > #map-container {
+        min-height: 320px;
     }
 }
 
@@ -113,8 +191,616 @@ html {
     border-radius: 4px;
 }
 
+/* ---------- Leaflet popup 外殼（現代卡片感） ---------- */
+.leaflet-popup-content-wrapper {
+    /* 覆寫 leaflet.css 固定 800×600：改為自適應高度，寬度維持與設計一致（勿用 width:auto 會整顆變窄） */
+    width: min(96vw, 42rem) !important;
+    max-width: min(96vw, 42rem);
+    height: auto !important;
+    max-height: min(92vh, 900px);
+    border-radius: 14px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow:
+        0 16px 48px rgba(15, 23, 42, 0.14),
+        0 0 0 1px rgba(15, 23, 42, 0.06);
+}
+.leaflet-popup-content {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: min(96vw, 42rem);
+    box-sizing: border-box;
+    font-family:
+        system-ui,
+        -apple-system,
+        'Segoe UI',
+        Roboto,
+        'Noto Sans TC',
+        sans-serif;
+}
+.leaflet-popup-tip {
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+.leaflet-container a.leaflet-popup-close-button {
+    width: 2rem;
+    height: 2rem;
+    font-size: 1.35rem;
+    line-height: 2rem;
+    padding: 0;
+    top: 8px;
+    right: 8px;
+    color: #64748b;
+    border-radius: 8px;
+    transition: background 0.15s, color 0.15s;
+}
+.leaflet-container a.leaflet-popup-close-button:hover {
+    color: #0f172a;
+    background: rgba(15, 23, 42, 0.06);
+}
 
+.mos-marker-count {
+    font-weight: 700;
+    text-align: center;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-sizing: border-box;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+}
 
+/* ---------- Popup 內容：設計權杖 ---------- */
+.mos-popup {
+    --mos-ink: #0f172a;
+    --mos-muted: #64748b;
+    --mos-line: #e2e8f0;
+    --mos-bg: #f8fafc;
+    --mos-accent: #2563eb;
+    --mos-accent-soft: #eff6ff;
+    --mos-danger: #dc2626;
+    --mos-danger-soft: #fef2f2;
+    --mos-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    max-height: min(85vh, 900px);
+    overflow-x: hidden;
+    overflow-y: hidden;
+    text-align: left;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--mos-ink);
+    padding: 14px 16px 16px;
+    -webkit-font-smoothing: antialiased;
+}
 
+.mos-popup__inner {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+}
+.mos-popup__header {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--mos-line);
+}
+.mos-popup__tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px;
+    background: var(--mos-bg);
+    border-radius: 10px;
+    border: 1px solid var(--mos-line);
+}
+.mos-popup__tab {
+    flex: 1 1 auto;
+    min-width: 4.5rem;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--mos-muted);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition:
+        background 0.15s,
+        color 0.15s,
+        box-shadow 0.15s;
+}
+.mos-popup__tab:hover {
+    color: var(--mos-ink);
+    background: rgba(255, 255, 255, 0.7);
+}
+.mos-popup__tab--active {
+    color: var(--mos-ink);
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+.mos-popup__tab:focus-visible {
+    outline: 2px solid var(--mos-accent);
+    outline-offset: 2px;
+}
+.mos-popup__head-text {
+    width: 100%;
+    text-align: center;
+}
+.mos-popup__page {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+.mos-popup__page--active {
+    display: flex;
+}
+.mos-popup__page-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+}
+.mos-popup__page-title {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mos-muted);
+}
+.mos-popup__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+.mos-popup__subtitle {
+    margin: 0 0 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mos-muted);
+}
+.mos-popup__range {
+    margin: 4px 0 0;
+    font-size: 0.72rem;
+    color: var(--mos-muted);
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--mos-bg);
+    border-radius: 999px;
+    border: 1px solid var(--mos-line);
+}
+.mos-popup__card {
+    background: #fff;
+    border: 1px solid var(--mos-line);
+    border-radius: var(--mos-radius);
+    padding: 12px 14px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.mos-popup__card--chart {
+    background: var(--mos-bg);
+}
+.mos-popup__dl {
+    margin: 0;
+}
+.mos-popup__dl-item {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    gap: 6px 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--mos-line);
+    align-items: start;
+}
+.mos-popup__dl-item:last-of-type {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.mos-popup__dl-item dt {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--mos-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.mos-popup__dl-item dd {
+    margin: 0;
+    font-size: 0.875rem;
+}
+.mos-popup__mono {
+    font-family: ui-monospace, monospace;
+    font-size: 0.78rem;
+    word-break: break-all;
+    color: var(--mos-muted);
+}
+.mos-popup__stat {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding: 2px 10px;
+    border-radius: 8px;
+    background: var(--mos-accent-soft);
+    color: #1d4ed8;
+}
+.mos-popup__stats-inline {
+    font-size: 0.8125rem;
+    color: var(--mos-ink);
+}
+.mos-popup__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--mos-line);
+}
+.mos-popup__chart {
+    width: 100%;
+    min-height: 200px;
+    max-height: 300px;
+    overflow: auto;
+    text-align: center;
+    margin: 0;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px dashed var(--mos-line);
+}
+.mos-popup__chart--page {
+    flex: 1;
+    min-height: 280px;
+    max-height: min(52vh, 520px);
+    max-width: 100%;
+}
+.mos-popup__photos--page {
+    flex: 1 1 0;
+    min-height: min(48vh, 420px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-padding-bottom: 3rem;
+}
+.mos-popup__skeleton {
+    display: inline-block;
+    margin-top: 2rem;
+    color: var(--mos-muted);
+    font-size: 0.8125rem;
+}
+.mos-popup__photos {
+    margin-top: 4px;
+}
+.mos-popup__hint {
+    margin: 0 0 8px;
+    font-size: 0.75rem;
+    color: var(--mos-muted);
+}
+.mos-popup__error {
+    margin: 6px 0 0;
+    font-size: 0.8125rem;
+    color: var(--mos-danger);
+}
+.mos-popup__empty {
+    margin: 8px 0;
+    font-size: 0.875rem;
+    color: var(--mos-muted);
+    text-align: center;
+}
+.mos-popup__chart-msg {
+    margin: 1.5rem 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--mos-muted);
+    text-align: center;
+}
 
+/* 設定頁 */
+.mos-popup--settings {
+    text-align: left;
+    padding-top: 12px;
+    overflow-y: auto;
+}
+.mos-popup__settings-head {
+    text-align: center;
+    margin-bottom: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--mos-line);
+}
+.mos-popup__heading {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+.mos-popup__settings-sub {
+    margin: 4px 0 0;
+    font-size: 0.75rem;
+    color: var(--mos-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+.mos-popup__label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--mos-muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.mos-popup__inline-inputs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+.mos-popup__time-sep {
+    color: var(--mos-muted);
+    font-weight: 600;
+}
+.mos-popup__time-fixed {
+    min-width: 1.25rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: var(--mos-muted);
+}
+.mos-popup__field {
+    margin-top: 14px;
+}
+.mos-popup__section {
+    margin-top: 12px;
+}
+.mos-popup__panel {
+    background: var(--mos-bg);
+    border: 1px solid var(--mos-line);
+    border-radius: var(--mos-radius);
+    padding: 10px 12px;
+}
+.mos-popup__panel-title {
+    margin: 0 0 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--mos-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.mos-popup__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.mos-popup__list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--mos-line);
+    font-size: 0.8125rem;
+}
+.mos-popup__list li:last-child {
+    border-bottom: none;
+}
+.mos-popup__block-btn {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    box-sizing: border-box;
+    text-align: center;
+}
+.mos-select {
+    padding: 6px 8px;
+    width: 4.25rem;
+    border-radius: 8px;
+    border: 1px solid var(--mos-line);
+    background: #fff;
+    font-size: 0.8125rem;
+    color: var(--mos-ink);
+}
+
+/* 按鈕：outline + solid，現代互動 */
+.mos-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: inherit;
+    line-height: 1.2;
+    transition:
+        background 0.15s,
+        border-color 0.15s,
+        color 0.15s,
+        box-shadow 0.15s;
+}
+.mos-btn:focus-visible {
+    outline: 2px solid var(--mos-accent);
+    outline-offset: 2px;
+}
+.mos-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.mos-btn--sm {
+    padding: 6px 11px;
+    font-size: 0.8125rem;
+    border-radius: 7px;
+}
+.mos-btn--xs {
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    border-radius: 6px;
+}
+.mos-btn--primary {
+    background: var(--mos-accent);
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.35);
+}
+.mos-btn--primary:hover {
+    background: #1d4ed8;
+}
+.mos-btn--secondary {
+    background: #fff;
+    color: var(--mos-ink);
+    border-color: var(--mos-line);
+}
+.mos-btn--secondary:hover {
+    background: var(--mos-bg);
+    border-color: #cbd5e1;
+}
+.mos-btn--ghost {
+    background: transparent;
+    color: var(--mos-muted);
+    border-color: transparent;
+}
+.mos-btn--ghost:hover {
+    background: var(--mos-bg);
+    color: var(--mos-ink);
+}
+.mos-btn--soft {
+    background: #fff;
+    color: var(--mos-accent);
+    border-color: #bfdbfe;
+}
+.mos-btn--soft:hover {
+    background: var(--mos-accent-soft);
+}
+.mos-btn--accent {
+    background: var(--mos-accent-soft);
+    color: #1e40af;
+    border-color: #bfdbfe;
+}
+.mos-btn--accent:hover {
+    background: #dbeafe;
+}
+.mos-btn--danger {
+    background: var(--mos-danger);
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(220, 38, 38, 0.3);
+}
+.mos-btn--danger:hover {
+    background: #b91c1c;
+}
+.mos-btn--danger-outline {
+    background: var(--mos-danger-soft);
+    color: var(--mos-danger);
+    border-color: #fecaca;
+}
+.mos-btn--danger-outline:hover {
+    background: #fee2e2;
+}
+.mos-btn--label-todo {
+    background: #ecfdf5;
+    color: #047857;
+    border-color: #a7f3d0;
+}
+.mos-btn--label-done {
+    background: #f1f5f9;
+    color: #475569;
+    border-color: var(--mos-line);
+}
+
+/* 歷史照片列表 */
+.mos-photo-list__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+.mos-photo-list__title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+.mos-photo-list__ul {
+    list-style: none;
+    padding: 0 0 3.5rem;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.mos-photo-card {
+    border: 1px solid var(--mos-line);
+    border-radius: var(--mos-radius);
+    background: #fff;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+.mos-photo-card__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+@media (min-width: 420px) {
+    .mos-photo-card__grid {
+        grid-template-columns: 1fr minmax(120px, 38%);
+    }
+}
+.mos-photo-card__time {
+    margin: 0 0 8px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--mos-ink);
+}
+.mos-photo-card__row {
+    margin: 4px 0;
+    font-size: 0.8125rem;
+}
+.mos-photo-card__block {
+    margin-top: 8px;
+}
+.mos-photo-card__k {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--mos-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
+.mos-photo-card__k--thumb {
+    margin-bottom: 6px;
+}
+.mos-photo-card__stat-line {
+    margin: 2px 0;
+    font-size: 0.78rem;
+}
+.mos-photo-card__stat-line--muted {
+    color: var(--mos-muted);
+}
+.mos-photo-card__thumb {
+    text-align: center;
+}
+.mos-photo-card__img {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 8px;
+    border: 1px solid var(--mos-line);
+    object-fit: contain;
+    background: var(--mos-bg);
+}
+.mos-photo-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--mos-line);
+}
 

@@ -4,69 +4,278 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>mosquito-map</title>
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="/css/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        .js-plotly-plot .plotly .user-select-none{
-            user-select: none !important;
-            margin-top: 20px !important;
-            margin-left: 12px !important;
-        }
-        .leaflet-popup-content-wrapper .leaflet-popup-content > div {
-            display: unset !important; /* 移除 display 屬性 */
-        }
-    </style>
+    <!-- Flatpickr CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/css/styles.css?v=20260517" />
+    <style>
+        /* RWD 基本重置 */
+        body, html { height: 100%; margin: 0; padding: 0; }
+        /*
+         * 地圖頁版面（避免頂欄 + 地圖「比例怪」）：
+         * - #container 直向 flex，頂部 #app-toolbar 依內容高度，不佔滿視窗。
+         * - #map-container flex:1 + min-height:0，讓地圖取得「剩餘視窗高度」。
+         * - #map 僅 width/height 100% 填滿父層，勿再對 #map 用 100vh 或與頂欄無關的固定高度。
+         * - 頂欄顯示/收合或 RWD 換行後請呼叫 map.invalidateSize()（resize 已綁定）。
+         */
+        #container { display: flex; flex-direction: column; height: 100%; }
+        #map-container { flex: 1; min-height: 0; position: relative; }
+        #map { width: 100%; height: 100%; }
+    </style>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <!-- Plotly JS: 明確版本避免警告 -->
+    <script src="https://cdn.plot.ly/plotly-2.21.0.min.js"></script>
+    <!-- Flatpickr JS -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
     <div id="container">
+        <header id="app-toolbar" class="app-toolbar" aria-label="查詢與裝置選擇">
+            <span class="app-toolbar__label">時間範圍</span>
+            <div class="app-toolbar__group">
+                <label class="app-toolbar__sublabel" for="start-time">開始</label>
+                <button type="button" id="start-time" class="app-toolbar__time-btn"></button>
+            </div>
+            <div class="app-toolbar__group">
+                <label class="app-toolbar__sublabel" for="end-time">結束</label>
+                <button type="button" id="end-time" class="app-toolbar__time-btn"></button>
+            </div>
+            <button type="button" id="fetch-data" class="app-toolbar__primary">確認查詢</button>
+            <div class="app-toolbar__group">
+                <label class="app-toolbar__sublabel" for="mosquito-box">篩選</label>
+                <select id="mosquito-box">
+                    <option value="all">全部種類</option>
+                    <option value="m5">AG斑紋類</option>
+                    <option value="m6">HG家蚊類</option>
+                </select>
+            </div>
+            <div class="app-toolbar__group app-toolbar__group--grow">
+                <label class="app-toolbar__sublabel" for="device-jump">裝置</label>
+                <select id="device-jump" title="選擇裝置並移動地圖、開啟資訊">
+                    <option value="">— 選擇裝置 —</option>
+                </select>
+            </div>
+            <button type="button" id="health-btn" class="app-toolbar__primary" onclick="toggleHealthPanel()">裝置狀態</button>
+        </header>
+        <!-- 裝置狀態面板：桌面=右側 fixed 浮動，手機=底部 fixed 滑出 -->
+        <div id="health-panel" hidden>
+            <div class="health-panel__header">
+                <strong>裝置健康狀態</strong>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button type="button" onclick="loadHealthData()" class="health-panel__refresh">↻ 重新整理</button>
+                    <button type="button" onclick="toggleHealthPanel()" class="health-panel__close" aria-label="關閉">✕</button>
+                </div>
+            </div>
+            <!-- 桌面用 table -->
+            <table id="health-table" class="health-table health-table--desktop">
+                <thead>
+                    <tr>
+                        <th>裝置</th>
+                        <th>狀態</th>
+                        <th>CPU 溫度</th>
+                        <th>磁碟</th>
+                        <th>待傳</th>
+                    </tr>
+                </thead>
+                <tbody id="health-tbody"><tr><td colspan="5" class="health-table__placeholder">載入中…</td></tr></tbody>
+            </table>
+            <!-- 手機用 cards -->
+            <div id="health-cards" class="health-cards health-cards--mobile"></div>
+        </div>
+        <style>
+            /* ===== 裝置狀態 panel ===== */
+            #health-panel {
+                position: fixed;
+                z-index: 2000;
+                background: #fff;
+                box-shadow: 0 4px 20px rgba(0,0,0,.18);
+                overflow-y: auto;
+            }
+
+            /* 桌面：右側浮動 */
+            @media (min-width: 600px) {
+                #health-panel {
+                    top: 56px; right: 12px;
+                    width: 420px; max-height: calc(100vh - 70px);
+                    border-radius: 8px;
+                    border: 1px solid #dde;
+                    padding: 12px 14px;
+                }
+            }
+
+            /* 手機：底部全寬滑出 */
+            @media (max-width: 599px) {
+                #health-panel {
+                    bottom: 0; left: 0; right: 0;
+                    max-height: 65vh;
+                    border-radius: 14px 14px 0 0;
+                    padding: 12px 14px 20px;
+                    border-top: 1px solid #dde;
+                }
+            }
+
+            .health-panel__header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+            }
+            .health-panel__refresh {
+                font-size: 12px; padding: 3px 10px;
+                border: 1px solid #ccc; border-radius: 4px;
+                background: #f5f5f5; cursor: pointer;
+            }
+            .health-panel__close {
+                font-size: 14px; padding: 2px 8px;
+                border: none; background: transparent;
+                cursor: pointer; color: #666;
+            }
+
+            /* ===== 桌面 table ===== */
+            .health-table {
+                width: 100%; border-collapse: collapse; font-size: 13px;
+            }
+            .health-table thead tr {
+                border-bottom: 1px solid #ddd; text-align: left;
+            }
+            .health-table th { padding: 4px 8px; color: #555; font-weight: 600; }
+            .health-table td { padding: 5px 8px; border-bottom: 1px solid #f2f2f2; }
+            .health-table__placeholder { padding: 10px; color: #999; }
+
+            /* 桌面顯示 table，隱藏 cards */
+            @media (min-width: 600px) {
+                .health-table--desktop { display: table; }
+                .health-cards--mobile  { display: none; }
+            }
+            /* 手機顯示 cards，隱藏 table */
+            @media (max-width: 599px) {
+                .health-table--desktop { display: none; }
+                .health-cards--mobile  { display: flex; flex-direction: column; gap: 8px; }
+            }
+
+            /* ===== 手機 cards ===== */
+            .health-card {
+                border: 1px solid #eee;
+                border-radius: 8px;
+                padding: 10px 12px;
+                display: grid;
+                grid-template-columns: 1fr auto;
+                grid-template-rows: auto auto;
+                gap: 4px 8px;
+                font-size: 13px;
+            }
+            .health-card__name {
+                font-weight: 600; font-size: 14px;
+                grid-column: 1; grid-row: 1;
+            }
+            .health-card__status {
+                grid-column: 2; grid-row: 1;
+                text-align: right; align-self: center;
+            }
+            .health-card__metrics {
+                grid-column: 1 / -1; grid-row: 2;
+                display: flex; gap: 14px; color: #555;
+            }
+            .health-card__metric span { font-size: 11px; color: #999; display: block; }
+        </style>
         <div id="map-container">
             <div id="map"></div>
         </div>
     </div>
+    <!-- 地圖功能及控制初始化腳本 -->
+    <script src="/js/mapFunctions.js?v=20260517"></script>
+    <script>
+        // 初始化 Leaflet 地圖
+        const map = L.map('map', {
+            center: [22.6273, 120.3014],
+            zoom: 10,
+            minZoom: 3,
+            maxZoom: 18,
+            maxBounds: [[-90, -180], [90, 180]],
+            maxBoundsViscosity: 1.0
+        });
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        window.addEventListener('resize', () => map.invalidateSize());
+        // 時間選擇與篩選在 initControls 內以 Flatpickr 綁定
+        initControls(map, (s, e) => fetchDataByTimeAndRenderMarkers(s, e, map));
+        // 首次載入資料標記
+        fetchDataByTimeAndRenderMarkers(getDefaultStartTime(), getDefaultEndTime(), map);
+
+        function toggleHealthPanel() {
+            const panel = document.getElementById('health-panel');
+            if (panel.hidden) {
+                panel.hidden = false;
+                loadHealthData();
+            } else {
+                panel.hidden = true;
+            }
+        }
+
+        function _colorVal(val, warnHi, errHi) {
+            if (val == null) return '<span style="color:#999">—</span>';
+            const c = val > errHi ? '#e74c3c' : val > warnHi ? '#e67e22' : '#2ecc71';
+            return `<span style="color:${c}">${val}</span>`;
+        }
+
+        function loadHealthData() {
+            fetch('/api/device-health')
+                .then(r => r.json())
+                .then(data => {
+                    // [TEMP][截圖用] 只顯示 TND1 ~ TND10，截完圖請移除此段
+                    data = data.filter(d => /^TND-?(10|[1-9])$/i.test(d.device_name));
+                    const tbody  = document.getElementById('health-tbody');
+                    const cards  = document.getElementById('health-cards');
+
+                    if (!data.length) {
+                        tbody.innerHTML = '<tr><td colspan="5" class="health-table__placeholder">無資料</td></tr>';
+                        cards.innerHTML = '<p style="color:#999;text-align:center;margin:12px 0;">無資料</p>';
+                        return;
+                    }
+
+                    tbody.innerHTML = data.map(d => {
+                        const dot = d.online
+                            ? '<span style="color:#2ecc71">●</span> 在線'
+                            : '<span style="color:#e74c3c">●</span> 離線';
+                        const temp    = d.cpu_temp     != null ? _colorVal(d.cpu_temp,    60, 75) + '°C' : '<span style="color:#999">—</span>';
+                        const disk    = d.disk_pct     != null ? _colorVal(d.disk_pct,    70, 85) + '%'  : '<span style="color:#999">—</span>';
+                        const pending = d.pending_count != null ? _colorVal(d.pending_count, 0, 5)       : '<span style="color:#999">—</span>';
+                        return `<tr>
+                            <td>${d.device_name}</td>
+                            <td>${dot}</td>
+                            <td>${temp}</td>
+                            <td>${disk}</td>
+                            <td>${pending}</td>
+                        </tr>`;
+                    }).join('');
+
+                    cards.innerHTML = data.map(d => {
+                        const onlineBadge = d.online
+                            ? '<span style="color:#2ecc71;font-weight:600;">● 在線</span>'
+                            : '<span style="color:#e74c3c;font-weight:600;">● 離線</span>';
+                        const temp    = d.cpu_temp     != null ? _colorVal(d.cpu_temp,    60, 75) + '°C' : '<span style="color:#999">—</span>';
+                        const disk    = d.disk_pct     != null ? _colorVal(d.disk_pct,    70, 85) + '%'  : '<span style="color:#999">—</span>';
+                        const pending = d.pending_count != null ? _colorVal(d.pending_count, 0, 5) + ' 張' : '<span style="color:#999">—</span>';
+                        return `<div class="health-card">
+                            <div class="health-card__name">${d.device_name}</div>
+                            <div class="health-card__status">${onlineBadge}</div>
+                            <div class="health-card__metrics">
+                                <div><span>CPU 溫度</span>${temp}</div>
+                                <div><span>磁碟</span>${disk}</div>
+                                <div><span>待傳</span>${pending}</div>
+                            </div>
+                        </div>`;
+                    }).join('');
+                })
+                .catch(() => {
+                    document.getElementById('health-tbody').innerHTML =
+                        '<tr><td colspan="5" class="health-table__placeholder" style="color:#e74c3c;">載入失敗</td></tr>';
+                    document.getElementById('health-cards').innerHTML =
+                        '<p style="color:#e74c3c;text-align:center;margin:12px 0;">載入失敗</p>';
+                });
+        }
+    </script>
 </body>
-<script src="/js/mapFunctions.js"></script>
-<script>
-    const map = L.map('map', {
-    center: [22.6273, 120.3014], // 台灣中心地圖
-    zoom: 10,             // 初始縮放層級
-    minZoom: 3,          // 最小縮放層級
-    maxZoom: 18,         // 最大縮放層級
-    maxBounds: [         // 設定地圖拖動的最大範圍
-        [-90, -180],     // 南西角 (南緯 90 度, 西經 180 度)
-        [90, 180]        // 東北角 (北緯 90 度, 東經 180 度)
-    ],
-    maxBoundsViscosity: 1.0 // 完全限制拖動範圍，不產生回彈
-});
-
-// 加載地圖圖層
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-}).addTo(map);
-    
-
-    window.addEventListener('resize', () => {
-        map.invalidateSize(); // 刷新地圖大小
-    });
-
-
-    // 初始化控制項（時間選擇器 + 下拉式選單）
-    initControls(map, (startTime, endTime) => {
-        fetchDataByTimeAndRenderMarkers(startTime, endTime, map);
-    }, (filter) => {
-        // 過濾條件更新後重新渲染標記
-        fetchDataByTimeAndRenderMarkers(
-            document.getElementById('start-time').value,
-            document.getElementById('end-time').value,
-            map
-        );
-    });
-    const defaultStart = getDefaultStartTime();
-    const defaultEnd = getDefaultEndTime();
-    fetchDataByTimeAndRenderMarkers(defaultStart, defaultEnd, map);
-
-</script>
 </html>
