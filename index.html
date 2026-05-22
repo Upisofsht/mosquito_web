@@ -1,279 +1,426 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>mosquito-map</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>蚊子監測系統 · Vector Watch</title>
+
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="/css/leaflet.css" />
     <!-- Flatpickr CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <!-- Custom Styles -->
-    <link rel="stylesheet" href="/css/styles.css?v=20260517" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+    <!-- Vector Watch dashboard styles -->
+    <link rel="stylesheet" href="/css/styles.css?v=20260522" />
+
     <style>
-        /* RWD 基本重置 */
-        body, html { height: 100%; margin: 0; padding: 0; }
-        /*
-         * 地圖頁版面（避免頂欄 + 地圖「比例怪」）：
-         * - #container 直向 flex，頂部 #app-toolbar 依內容高度，不佔滿視窗。
-         * - #map-container flex:1 + min-height:0，讓地圖取得「剩餘視窗高度」。
-         * - #map 僅 width/height 100% 填滿父層，勿再對 #map 用 100vh 或與頂欄無關的固定高度。
-         * - 頂欄顯示/收合或 RWD 換行後請呼叫 map.invalidateSize()（resize 已綁定）。
-         */
+        /* Layout primitives — kept in <head> per legacy convention. */
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
         #container { display: flex; flex-direction: column; height: 100%; }
         #map-container { flex: 1; min-height: 0; position: relative; }
         #map { width: 100%; height: 100%; }
     </style>
+
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-    <!-- Plotly JS: 明確版本避免警告 -->
+    <!-- Plotly JS -->
     <script src="https://cdn.plot.ly/plotly-2.21.0.min.js"></script>
     <!-- Flatpickr JS -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body>
     <div id="container">
+        <!-- ============================================================
+             Top toolbar: brand · controls · KPI chips · health toggle
+             ============================================================ -->
         <header id="app-toolbar" class="app-toolbar" aria-label="查詢與裝置選擇">
-            <span class="app-toolbar__label">時間範圍</span>
-            <div class="app-toolbar__group">
-                <label class="app-toolbar__sublabel" for="start-time">開始</label>
-                <button type="button" id="start-time" class="app-toolbar__time-btn"></button>
-            </div>
-            <div class="app-toolbar__group">
-                <label class="app-toolbar__sublabel" for="end-time">結束</label>
-                <button type="button" id="end-time" class="app-toolbar__time-btn"></button>
-            </div>
-            <button type="button" id="fetch-data" class="app-toolbar__primary">確認查詢</button>
-            <div class="app-toolbar__group">
-                <label class="app-toolbar__sublabel" for="mosquito-box">篩選</label>
-                <select id="mosquito-box">
-                    <option value="all">全部種類</option>
-                    <option value="m5">AG斑紋類</option>
-                    <option value="m6">HG家蚊類</option>
-                </select>
-            </div>
-            <div class="app-toolbar__group app-toolbar__group--grow">
-                <label class="app-toolbar__sublabel" for="device-jump">裝置</label>
-                <select id="device-jump" title="選擇裝置並移動地圖、開啟資訊">
-                    <option value="">— 選擇裝置 —</option>
-                </select>
-            </div>
-            <button type="button" id="health-btn" class="app-toolbar__primary" onclick="toggleHealthPanel()">裝置狀態</button>
-        </header>
-        <!-- 裝置狀態面板：桌面=右側 fixed 浮動，手機=底部 fixed 滑出 -->
-        <div id="health-panel" hidden>
-            <div class="health-panel__header">
-                <strong>裝置健康狀態</strong>
-                <div style="display:flex;gap:8px;align-items:center;">
-                    <button type="button" onclick="loadHealthData()" class="health-panel__refresh">↻ 重新整理</button>
-                    <button type="button" onclick="toggleHealthPanel()" class="health-panel__close" aria-label="關閉">✕</button>
+
+            <!-- Brand block -->
+            <div class="vw-brand">
+                <div class="vw-brand__mark" aria-hidden="true">
+                    <!-- Mosquito glyph (simple, monochrome on teal) -->
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 4v6" />
+                        <path d="M12 10c-2.2 0-4 1.8-4 4v3l-3 2" />
+                        <path d="M12 10c2.2 0 4 1.8 4 4v3l3 2" />
+                        <path d="M8 6c-1.5-1-3.5-1-5 0" />
+                        <path d="M16 6c1.5-1 3.5-1 5 0" />
+                        <circle cx="12" cy="20" r="1.2" fill="currentColor" stroke="none" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="vw-brand__title">蚊子監測系統</div>
+                    <div class="vw-brand__sub">Vector Watch</div>
                 </div>
             </div>
-            <!-- 桌面用 table -->
-            <table id="health-table" class="health-table health-table--desktop">
-                <thead>
-                    <tr>
-                        <th>裝置</th>
-                        <th>狀態</th>
-                        <th>CPU 溫度</th>
-                        <th>磁碟</th>
-                        <th>待傳</th>
-                    </tr>
-                </thead>
-                <tbody id="health-tbody"><tr><td colspan="5" class="health-table__placeholder">載入中…</td></tr></tbody>
-            </table>
-            <!-- 手機用 cards -->
-            <div id="health-cards" class="health-cards health-cards--mobile"></div>
+
+            <!-- Centre: query controls -->
+            <div class="vw-controls">
+                <!-- Legacy hidden contract labels (display:contents) -->
+                <span class="app-toolbar__label" hidden>時間範圍</span>
+
+                <div class="vw-control">
+                    <label class="vw-control__label" for="start-time">開始時間</label>
+                    <div class="vw-control__row">
+                        <span class="app-toolbar__sublabel" hidden></span>
+                        <button type="button" id="start-time" class="app-toolbar__time-btn vw-time-btn" aria-label="選擇開始時間"></button>
+                        <span class="vw-range-arrow" aria-hidden="true">→</span>
+                    </div>
+                </div>
+
+                <div class="vw-control">
+                    <label class="vw-control__label" for="end-time">結束時間</label>
+                    <div class="vw-control__row">
+                        <span class="app-toolbar__sublabel" hidden></span>
+                        <button type="button" id="end-time" class="app-toolbar__time-btn vw-time-btn" aria-label="選擇結束時間"></button>
+                    </div>
+                </div>
+
+                <div class="vw-control">
+                    <label class="vw-control__label" for="mosquito-box">蚊種篩選</label>
+                    <div class="vw-control__row">
+                        <span class="app-toolbar__sublabel" hidden></span>
+                        <select id="mosquito-box" class="vw-select">
+                            <option value="all">全部種類</option>
+                            <option value="m5">AG 斑紋類</option>
+                            <option value="m6">HG 家蚊類</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="vw-control">
+                    <label class="vw-control__label" for="device-jump">裝置快速跳轉</label>
+                    <div class="vw-control__row">
+                        <span class="app-toolbar__sublabel" hidden></span>
+                        <select id="device-jump" class="vw-select" title="選擇裝置並移動地圖、開啟資訊">
+                            <option value="">— 選擇裝置 —</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="vw-control">
+                    <label class="vw-control__label">&nbsp;</label>
+                    <div class="vw-control__row">
+                        <button type="button" id="fetch-data" class="app-toolbar__primary vw-btn" aria-label="確認查詢">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <circle cx="11" cy="11" r="7" />
+                                <path d="M20 20l-3.5-3.5" />
+                            </svg>
+                            確認查詢
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: KPI chips + health toggle -->
+            <div class="vw-toolbar-right">
+                <div class="vw-kpis" role="group" aria-label="即時摘要">
+                    <div class="vw-kpi" title="本查詢區間內所有裝置之捕獲總數">
+                        <div class="vw-kpi__icon vw-kpi__icon--teal" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 21V8l9-5 9 5v13" /><path d="M9 21v-7h6v7" />
+                            </svg>
+                        </div>
+                        <div class="vw-kpi__text">
+                            <span class="vw-kpi__label">區間捕獲</span>
+                            <span class="vw-kpi__value" id="kpi-catch-total">—</span>
+                        </div>
+                    </div>
+
+                    <div class="vw-kpi" title="目前在線裝置數 / 全部裝置">
+                        <div class="vw-kpi__icon vw-kpi__icon--ok" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12.5a7 7 0 0114 0" /><path d="M8.5 16a3.5 3.5 0 017 0" /><circle cx="12" cy="19.5" r="1" fill="currentColor" stroke="none" />
+                            </svg>
+                        </div>
+                        <div class="vw-kpi__text">
+                            <span class="vw-kpi__label">在線裝置</span>
+                            <span class="vw-kpi__value vw-kpi__value--ok" id="kpi-online">—<sup id="kpi-online-total">/ —</sup></span>
+                        </div>
+                    </div>
+
+                    <div class="vw-kpi" title="任一指標超過警示門檻的裝置數">
+                        <div class="vw-kpi__icon vw-kpi__icon--warn" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 3l10 17H2L12 3z" /><path d="M12 10v5" /><circle cx="12" cy="18" r=".8" fill="currentColor" stroke="none" />
+                            </svg>
+                        </div>
+                        <div class="vw-kpi__text">
+                            <span class="vw-kpi__label">健康警示</span>
+                            <span class="vw-kpi__value" id="kpi-alerts">—</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" id="health-btn" class="vw-btn vw-btn--ghost" onclick="toggleHealthPanel()" aria-controls="health-panel" aria-expanded="false">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 12h4l2-6 4 12 2-6h6" />
+                    </svg>
+                    裝置狀態
+                </button>
+            </div>
+        </header>
+
+        <!-- ============================================================
+             Health panel — desktop floating card / mobile sheet
+             ============================================================ -->
+        <div id="health-panel" hidden role="dialog" aria-labelledby="health-panel-title">
+            <div class="health-panel__header">
+                <div class="health-panel__title-row">
+                    <strong id="health-panel-title">裝置健康狀態</strong>
+                    <span class="health-panel__subtitle" id="health-panel-meta">最近更新 —</span>
+                </div>
+                <div class="health-panel__actions">
+                    <button type="button" class="health-panel__refresh" onclick="loadHealthData()" aria-label="重新整理">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 12a9 9 0 0115.5-6.3L21 8" /><path d="M21 3v5h-5" />
+                            <path d="M21 12a9 9 0 01-15.5 6.3L3 16" /><path d="M3 21v-5h5" />
+                        </svg>
+                        重新整理
+                    </button>
+                    <button type="button" class="health-panel__close" onclick="toggleHealthPanel()" aria-label="關閉">✕</button>
+                </div>
+            </div>
+
+            <div class="health-panel__body">
+                <!-- Legacy table is kept in DOM for mapFunctions.js / health renderer.
+                     CSS forces display:none so we always render cards. -->
+                <table id="health-table" class="health-table health-table--desktop" aria-hidden="true">
+                    <thead>
+                        <tr>
+                            <th>裝置</th><th>狀態</th><th>CPU 溫度</th><th>磁碟</th><th>待傳</th>
+                        </tr>
+                    </thead>
+                    <tbody id="health-tbody">
+                        <tr><td colspan="5" class="health-table__placeholder">載入中…</td></tr>
+                    </tbody>
+                </table>
+
+                <!-- Card grid (rendered on every viewport) -->
+                <div id="health-cards" class="health-cards health-cards--mobile" aria-live="polite">
+                    <div class="vw-empty">載入中…</div>
+                </div>
+            </div>
         </div>
-        <style>
-            /* ===== 裝置狀態 panel ===== */
-            #health-panel {
-                position: fixed;
-                z-index: 2000;
-                background: #fff;
-                box-shadow: 0 4px 20px rgba(0,0,0,.18);
-                overflow-y: auto;
-            }
 
-            /* 桌面：右側浮動 */
-            @media (min-width: 600px) {
-                #health-panel {
-                    top: 56px; right: 12px;
-                    width: 420px; max-height: calc(100vh - 70px);
-                    border-radius: 8px;
-                    border: 1px solid #dde;
-                    padding: 12px 14px;
-                }
-            }
-
-            /* 手機：底部全寬滑出 */
-            @media (max-width: 599px) {
-                #health-panel {
-                    bottom: 0; left: 0; right: 0;
-                    max-height: 65vh;
-                    border-radius: 14px 14px 0 0;
-                    padding: 12px 14px 20px;
-                    border-top: 1px solid #dde;
-                }
-            }
-
-            .health-panel__header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 10px;
-            }
-            .health-panel__refresh {
-                font-size: 12px; padding: 3px 10px;
-                border: 1px solid #ccc; border-radius: 4px;
-                background: #f5f5f5; cursor: pointer;
-            }
-            .health-panel__close {
-                font-size: 14px; padding: 2px 8px;
-                border: none; background: transparent;
-                cursor: pointer; color: #666;
-            }
-
-            /* ===== 桌面 table ===== */
-            .health-table {
-                width: 100%; border-collapse: collapse; font-size: 13px;
-            }
-            .health-table thead tr {
-                border-bottom: 1px solid #ddd; text-align: left;
-            }
-            .health-table th { padding: 4px 8px; color: #555; font-weight: 600; }
-            .health-table td { padding: 5px 8px; border-bottom: 1px solid #f2f2f2; }
-            .health-table__placeholder { padding: 10px; color: #999; }
-
-            /* 桌面顯示 table，隱藏 cards */
-            @media (min-width: 600px) {
-                .health-table--desktop { display: table; }
-                .health-cards--mobile  { display: none; }
-            }
-            /* 手機顯示 cards，隱藏 table */
-            @media (max-width: 599px) {
-                .health-table--desktop { display: none; }
-                .health-cards--mobile  { display: flex; flex-direction: column; gap: 8px; }
-            }
-
-            /* ===== 手機 cards ===== */
-            .health-card {
-                border: 1px solid #eee;
-                border-radius: 8px;
-                padding: 10px 12px;
-                display: grid;
-                grid-template-columns: 1fr auto;
-                grid-template-rows: auto auto;
-                gap: 4px 8px;
-                font-size: 13px;
-            }
-            .health-card__name {
-                font-weight: 600; font-size: 14px;
-                grid-column: 1; grid-row: 1;
-            }
-            .health-card__status {
-                grid-column: 2; grid-row: 1;
-                text-align: right; align-self: center;
-            }
-            .health-card__metrics {
-                grid-column: 1 / -1; grid-row: 2;
-                display: flex; gap: 14px; color: #555;
-            }
-            .health-card__metric span { font-size: 11px; color: #999; display: block; }
-        </style>
+        <!-- ============================================================
+             Map
+             ============================================================ -->
         <div id="map-container">
             <div id="map"></div>
         </div>
     </div>
-    <!-- 地圖功能及控制初始化腳本 -->
-    <script src="/js/mapFunctions.js?v=20260517"></script>
+
+    <!-- Map function library (DO NOT MODIFY) -->
+    <script src="/js/mapFunctions.js?v=20260522"></script>
     <script>
-        // 初始化 Leaflet 地圖
+        // ============================================================
+        // Map init — unchanged contract with mapFunctions.js
+        // ============================================================
         const map = L.map('map', {
             center: [22.6273, 120.3014],
             zoom: 10,
             minZoom: 3,
             maxZoom: 18,
             maxBounds: [[-90, -180], [90, 180]],
-            maxBoundsViscosity: 1.0
+            maxBoundsViscosity: 1.0,
         });
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap',
+        }).addTo(map);
         window.addEventListener('resize', () => map.invalidateSize());
-        // 時間選擇與篩選在 initControls 內以 Flatpickr 綁定
+
         initControls(map, (s, e) => fetchDataByTimeAndRenderMarkers(s, e, map));
-        // 首次載入資料標記
         fetchDataByTimeAndRenderMarkers(getDefaultStartTime(), getDefaultEndTime(), map);
+
+        // ============================================================
+        // Health panel — improved rendering + KPI integration
+        // ============================================================
+        const HEALTH_THRESHOLDS = {
+            cpu: { warn: 60, alert: 75 },
+            disk: { warn: 70, alert: 85 },
+            pending: { warn: 5, alert: 20 },
+        };
 
         function toggleHealthPanel() {
             const panel = document.getElementById('health-panel');
+            const btn = document.getElementById('health-btn');
             if (panel.hidden) {
                 panel.hidden = false;
+                btn.setAttribute('aria-expanded', 'true');
+                btn.classList.add('vw-btn--active');
                 loadHealthData();
             } else {
                 panel.hidden = true;
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('vw-btn--active');
             }
         }
 
-        function _colorVal(val, warnHi, errHi) {
-            if (val == null) return '<span style="color:#999">—</span>';
-            const c = val > errHi ? '#e74c3c' : val > warnHi ? '#e67e22' : '#2ecc71';
-            return `<span style="color:${c}">${val}</span>`;
+        function _level(val, t) {
+            if (val == null) return 'muted';
+            if (val > t.alert) return 'alert';
+            if (val > t.warn)  return 'warn';
+            return 'ok';
+        }
+
+        function _fmtVal(val, suffix) {
+            if (val == null) return '—';
+            return `${val}${suffix || ''}`;
+        }
+
+        function _renderCard(d) {
+            const cpuLevel  = _level(d.cpu_temp, HEALTH_THRESHOLDS.cpu);
+            const diskLevel = _level(d.disk_pct, HEALTH_THRESHOLDS.disk);
+            const pendLevel = _level(d.pending_count, HEALTH_THRESHOLDS.pending);
+
+            // overall card accent = worst severity (only when online; offline = grey)
+            const worst = !d.online
+                ? 'off'
+                : [cpuLevel, diskLevel, pendLevel].includes('alert')
+                    ? 'alert'
+                    : [cpuLevel, diskLevel, pendLevel].includes('warn')
+                        ? 'warn'
+                        : 'ok';
+
+            const statusClass = d.online ? 'health-card__status--online' : 'health-card__status--offline';
+            const statusLabel = d.online ? '在線' : '離線';
+
+            // mini bars: cpu by % of 100°C cap (display only); disk by %; pending by % of 25
+            const cpuPct  = d.cpu_temp     != null ? Math.min(100, (d.cpu_temp / 90) * 100)  : 0;
+            const diskPct = d.disk_pct     != null ? Math.min(100, d.disk_pct)                : 0;
+            const pendPct = d.pending_count != null ? Math.min(100, (d.pending_count / 25) * 100) : 0;
+
+            return `
+                <article class="health-card health-card--${worst}" data-device="${d.device_name}">
+                    <div class="health-card__name">${d.device_name}</div>
+                    <div class="health-card__status ${statusClass}">
+                        <span class="health-card__dot"></span>${statusLabel}
+                    </div>
+                    <div class="health-card__metrics">
+                        <div class="health-card__metric">
+                            <span class="health-card__metric-label">CPU 溫度</span>
+                            <span class="health-card__metric-value health-card__metric-value--${cpuLevel}">${_fmtVal(d.cpu_temp, '°C')}</span>
+                            <div class="health-card__bar health-card__bar--${cpuLevel}"><i style="width:${cpuPct}%"></i></div>
+                        </div>
+                        <div class="health-card__metric">
+                            <span class="health-card__metric-label">磁碟</span>
+                            <span class="health-card__metric-value health-card__metric-value--${diskLevel}">${_fmtVal(d.disk_pct, '%')}</span>
+                            <div class="health-card__bar health-card__bar--${diskLevel}"><i style="width:${diskPct}%"></i></div>
+                        </div>
+                        <div class="health-card__metric">
+                            <span class="health-card__metric-label">待傳張數</span>
+                            <span class="health-card__metric-value health-card__metric-value--${pendLevel}">${_fmtVal(d.pending_count, '')}</span>
+                            <div class="health-card__bar health-card__bar--${pendLevel}"><i style="width:${pendPct}%"></i></div>
+                        </div>
+                    </div>
+                </article>`;
+        }
+
+        function _updateKpis(data) {
+            const onlineN = data.filter(d => d.online).length;
+            const totalN  = data.length;
+            const alerts  = data.filter(d => {
+                if (!d.online) return true;
+                const c = _level(d.cpu_temp, HEALTH_THRESHOLDS.cpu);
+                const k = _level(d.disk_pct, HEALTH_THRESHOLDS.disk);
+                const p = _level(d.pending_count, HEALTH_THRESHOLDS.pending);
+                return [c, k, p].includes('warn') || [c, k, p].includes('alert');
+            }).length;
+
+            const onlineEl = document.getElementById('kpi-online');
+            const onlineTot = document.getElementById('kpi-online-total');
+            if (onlineEl) onlineEl.firstChild.nodeValue = onlineN;
+            if (onlineTot) onlineTot.textContent = `/ ${totalN}`;
+
+            const alertsEl = document.getElementById('kpi-alerts');
+            if (alertsEl) {
+                alertsEl.textContent = alerts;
+                alertsEl.className = 'vw-kpi__value ' + (alerts === 0 ? 'vw-kpi__value--ok' : alerts >= 3 ? 'vw-kpi__value--alert' : 'vw-kpi__value--warn');
+            }
+
+            // Catch total uses mapFunctions.js-loaded data if available; otherwise leave dash
+            try {
+                if (window.__lastMarkers && Array.isArray(window.__lastMarkers)) {
+                    const total = window.__lastMarkers.reduce((acc, m) => acc + (parseInt(m.count, 10) || 0), 0);
+                    const el = document.getElementById('kpi-catch-total');
+                    if (el) el.textContent = total.toLocaleString('zh-Hant-TW');
+                }
+            } catch (e) { /* noop */ }
+
+            const meta = document.getElementById('health-panel-meta');
+            if (meta) {
+                const now = new Date();
+                const hh = String(now.getHours()).padStart(2, '0');
+                const mm = String(now.getMinutes()).padStart(2, '0');
+                meta.textContent = `最近更新 ${hh}:${mm}`;
+            }
         }
 
         function loadHealthData() {
+            const cards = document.getElementById('health-cards');
+            const tbody = document.getElementById('health-tbody');
+            cards.innerHTML = '<div class="vw-empty">載入中…</div>';
+
             fetch('/api/device-health')
                 .then(r => r.json())
                 .then(data => {
-                    const tbody  = document.getElementById('health-tbody');
-                    const cards  = document.getElementById('health-cards');
-
                     if (!data.length) {
+                        cards.innerHTML = '<div class="vw-empty">目前沒有裝置資料</div>';
                         tbody.innerHTML = '<tr><td colspan="5" class="health-table__placeholder">無資料</td></tr>';
-                        cards.innerHTML = '<p style="color:#999;text-align:center;margin:12px 0;">無資料</p>';
+                        _updateKpis([]);
                         return;
                     }
 
+                    cards.innerHTML = data.map(_renderCard).join('');
+
+                    // Keep legacy table populated (some downstream code or screen
+                    // readers may look at it). CSS hides it from view.
                     tbody.innerHTML = data.map(d => {
                         const dot = d.online
-                            ? '<span style="color:#2ecc71">●</span> 在線'
-                            : '<span style="color:#e74c3c">●</span> 離線';
-                        const temp    = d.cpu_temp     != null ? _colorVal(d.cpu_temp,    60, 75) + '°C' : '<span style="color:#999">—</span>';
-                        const disk    = d.disk_pct     != null ? _colorVal(d.disk_pct,    70, 85) + '%'  : '<span style="color:#999">—</span>';
-                        const pending = d.pending_count != null ? _colorVal(d.pending_count, 0, 5)       : '<span style="color:#999">—</span>';
+                            ? '<span style="color:#15A36F">●</span> 在線'
+                            : '<span style="color:#DB4C4C">●</span> 離線';
                         return `<tr>
                             <td>${d.device_name}</td>
                             <td>${dot}</td>
-                            <td>${temp}</td>
-                            <td>${disk}</td>
-                            <td>${pending}</td>
+                            <td>${d.cpu_temp ?? '—'}</td>
+                            <td>${d.disk_pct ?? '—'}</td>
+                            <td>${d.pending_count ?? '—'}</td>
                         </tr>`;
                     }).join('');
 
-                    cards.innerHTML = data.map(d => {
-                        const onlineBadge = d.online
-                            ? '<span style="color:#2ecc71;font-weight:600;">● 在線</span>'
-                            : '<span style="color:#e74c3c;font-weight:600;">● 離線</span>';
-                        const temp    = d.cpu_temp     != null ? _colorVal(d.cpu_temp,    60, 75) + '°C' : '<span style="color:#999">—</span>';
-                        const disk    = d.disk_pct     != null ? _colorVal(d.disk_pct,    70, 85) + '%'  : '<span style="color:#999">—</span>';
-                        const pending = d.pending_count != null ? _colorVal(d.pending_count, 0, 5) + ' 張' : '<span style="color:#999">—</span>';
-                        return `<div class="health-card">
-                            <div class="health-card__name">${d.device_name}</div>
-                            <div class="health-card__status">${onlineBadge}</div>
-                            <div class="health-card__metrics">
-                                <div><span>CPU 溫度</span>${temp}</div>
-                                <div><span>磁碟</span>${disk}</div>
-                                <div><span>待傳</span>${pending}</div>
-                            </div>
-                        </div>`;
-                    }).join('');
+                    _updateKpis(data);
                 })
-                .catch(() => {
-                    document.getElementById('health-tbody').innerHTML =
-                        '<tr><td colspan="5" class="health-table__placeholder" style="color:#e74c3c;">載入失敗</td></tr>';
-                    document.getElementById('health-cards').innerHTML =
-                        '<p style="color:#e74c3c;text-align:center;margin:12px 0;">載入失敗</p>';
+                .catch(err => {
+                    console.error('health fetch failed', err);
+                    cards.innerHTML = '<div class="vw-empty vw-empty--error">載入失敗，請稍後再試</div>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="health-table__placeholder">載入失敗</td></tr>';
                 });
         }
+
+        // Eagerly populate KPIs on load (silent — re-uses /api/device-health).
+        // Health panel stays closed until user clicks.
+        document.addEventListener('DOMContentLoaded', () => {
+            fetch('/api/device-health')
+                .then(r => r.json())
+                .then(_updateKpis)
+                .catch(() => {});
+        });
+
+        // ============================================================
+        // KPI: catch total — 直接吃 mapFunctions.js 的事件，避免重複 fetch
+        // ============================================================
+        document.addEventListener('mos:markers-loaded', (ev) => {
+            const rows = ev.detail;
+            if (!Array.isArray(rows)) return;
+            const total = rows.reduce((acc, m) => acc + (parseInt(m.count ?? m.m5 ?? 0, 10) || 0), 0);
+            const el = document.getElementById('kpi-catch-total');
+            if (el) el.textContent = total.toLocaleString('zh-Hant-TW');
+        });
     </script>
 </body>
 </html>

@@ -58,65 +58,50 @@ function createCustomIcon(color) {
     });
 }
 
-// 顏色計算函數
+// 顏色計算函數 — Vector Watch 四階色票
+//   0           → slate-zero (#5A6B7E)
+//   1   – 25    → teal-low   (#1B95A8)
+//   26  – 100   → amber-mid  (#D97706)
+//   101 +       → coral-high (#DB4C4C)
 function getColor(count) {
-    if (count === 0) {
-        return 'black';
-    }
-    const levels = [10000, 5000, 1000, 500, 250, 125, 75, 50, 25, 5, 0];
-    const maxLightness = 90;
-    const minLightness = 20;
-    const hue = 240;
-
-    for (let i = 0; i < levels.length; i++) {
-        if (count >= levels[i]) {
-            const lightness = minLightness + (i * (maxLightness - minLightness) / (levels.length - 1));
-            return `hsl(${hue}, 100%, ${lightness}%)`;
-        }
-    }
-    return `hsl(${hue}, 100%, ${maxLightness}%)`;
+    const n = parseInt(count, 10);
+    if (!Number.isFinite(n) || n <= 0) return '#5A6B7E';
+    if (n <= 25)  return '#1B95A8';
+    if (n <= 100) return '#D97706';
+    return '#DB4C4C';
 }
 
-// 互補色計算函數
-function getComplementaryColor(hslColor) {
-    const regex = /hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/;
-    const match = hslColor.match(regex);
-    if (match) {
-        let hue = parseInt(match[1]);
-        const saturation = parseInt(match[2]);
-        const lightness = parseInt(match[3]);
-
-        if (lightness === 0) {
-            return 'hsl(0, 0%, 100%)';
-        }
-        if (lightness === 100) {
-            return 'hsl(0, 0%, 0%)';
-        }
-
-        hue = (hue + 180) % 360;
-        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-    }
-    return 'white';
+// 互補色（marker 文字顏色）。新版 marker 一律白字，這支 helper 仍保留以兼容舊呼叫。
+function getComplementaryColor(/* hex */) {
+    return '#FFFFFF';
 }
 
 // 創建帶計數的自定義圖標（大數字縮小字級或顯示 999+，完整數字見 tooltip）
 function createCustomIconWithCount(count, color) {
     const n = parseInt(count, 10);
     const num = isNaN(n) ? 0 : n;
-    const isZero = num === 0;
-    const complementColor = isZero ? 'white' : getComplementaryColor(color);
+    // 一律白字，不再用互補色（與新四階色票相容）
+    const complementColor = '#FFFFFF';
     let label = String(num);
     let fontSize = 12;
-    let size = 22;
+    let size = 36;
     if (num > 999) {
         label = '999+';
-        fontSize = 9;
-        size = 28;
-    } else if (num > 99) {
-        fontSize = 10;
-        size = 24;
-    } else if (num > 9) {
         fontSize = 11;
+        size = 56;
+    } else if (num > 99) {
+        fontSize = 13;
+        size = 48;
+    } else if (num > 9) {
+        fontSize = 13;
+        size = 42;
+    } else if (num > 0) {
+        fontSize = 13;
+        size = 38;
+    } else {
+        // num === 0
+        fontSize = 12;
+        size = 32;
     }
     const half = Math.round(size / 2);
     return L.divIcon({
@@ -128,6 +113,90 @@ function createCustomIconWithCount(count, color) {
 }
 
 let lastMarkerPayload = null;
+
+// ============================================================
+// Vector Watch — Plotly theme overlay
+// Re-skins the server-rendered Plotly figure to match the dashboard:
+// teal/amber/coral series, slate gridlines, transparent background,
+// matching font stack. Safe to call repeatedly.
+// ============================================================
+const VW_PLOTLY_PALETTE = [
+    '#0E7C8E', // teal-600 (primary / AG)
+    '#D97706', // amber-mid (HG)
+    '#7A5BD9', // species-ag / Other
+    '#15A36F', // ok-500
+    '#DB4C4C', // alert-600
+    '#5A6B7E', // slate-500
+];
+function applyVectorWatchPlotlyTheme(root) {
+    if (typeof Plotly === 'undefined' || !root) return;
+    const gd = root.querySelector('.plotly-graph-div');
+    if (!gd || !gd.data) return;
+
+    // Per-trace color override: cycle through VW palette while
+    // preserving original trace names and types.
+    const traceUpdate = {};
+    (gd.data || []).forEach((tr, i) => {
+        const col = VW_PLOTLY_PALETTE[i % VW_PLOTLY_PALETTE.length];
+        if (!traceUpdate['line.color']) traceUpdate['line.color'] = [];
+        if (!traceUpdate['marker.color']) traceUpdate['marker.color'] = [];
+        traceUpdate['line.color'].push(col);
+        traceUpdate['marker.color'].push(col);
+    });
+
+    const layoutUpdate = {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor:  'rgba(0,0,0,0)',
+        font: {
+            family: '"Inter","Noto Sans TC",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif',
+            size:   12,
+            color:  '#2A3A4A',
+        },
+        colorway: VW_PLOTLY_PALETTE,
+        xaxis: {
+            gridcolor: '#ECF0F4',
+            zerolinecolor: '#DCE3EB',
+            linecolor: '#DCE3EB',
+            tickfont:  { color: '#5A6B7E', size: 11 },
+            title:     { font: { color: '#425466', size: 12 } },
+        },
+        yaxis: {
+            gridcolor: '#ECF0F4',
+            zerolinecolor: '#DCE3EB',
+            linecolor: '#DCE3EB',
+            tickfont:  { color: '#5A6B7E', size: 11 },
+            title:     { font: { color: '#425466', size: 12 } },
+        },
+        legend: {
+            font: { color: '#2A3A4A', size: 11 },
+            bgcolor: 'rgba(255,255,255,.7)',
+            bordercolor: '#DCE3EB',
+            borderwidth: 1,
+        },
+        margin: { l: 48, r: 16, t: 18, b: 38 },
+        hoverlabel: {
+            bgcolor: '#0F1B26',
+            bordercolor: '#0F1B26',
+            font: {
+                family: '"Inter","Noto Sans TC",system-ui,sans-serif',
+                color: '#FFFFFF',
+                size: 11,
+            },
+        },
+    };
+
+    try {
+        if (Object.keys(traceUpdate).length) {
+            const indices = (gd.data || []).map((_, i) => i);
+            Plotly.restyle(gd, traceUpdate, indices);
+        }
+        Plotly.relayout(gd, layoutUpdate);
+    } catch (e) {
+        // Theme is best-effort; never break the popup if Plotly internals
+        // change shape.
+        console.warn('VW Plotly theme apply failed:', e);
+    }
+}
 let lastFormattedStartTime = null;
 let lastFormattedEndTime = null;
 let deviceMarkersLayer = null;
@@ -415,6 +484,8 @@ function fetchDataByTimeAndRenderMarkers(startTime, endTime, map) {
                 lastMarkerPayload = data;
                 lastFormattedStartTime = formattedStartTime;
                 lastFormattedEndTime = formattedEndTime;
+                window.__lastMarkers = data;
+                document.dispatchEvent(new CustomEvent('mos:markers-loaded', { detail: data }));
             }
             renderMarkers(data, map, formattedStartTime, formattedEndTime, true);
         })
@@ -846,6 +917,8 @@ function renderMarkers(data, map, formattedStartTime, formattedEndTime, fitMapTo
                                     document.body.appendChild(newScript);
                                     newScript.remove();
                                 });
+                                // ---- Vector Watch theming: tint Plotly chart after server inject ----
+                                applyVectorWatchPlotlyTheme(chartContainer);
                             } else {
                                 chartContainer.innerHTML =
                                     '<p class="mos-popup__chart-msg">此時間範圍沒有新增蚊子。</p>';
