@@ -192,6 +192,117 @@ def get_pi_file(filename):
         return jsonify({"error": "not found"}), 404
     return send_from_directory(os.path.abspath(_PI_FILES_DIR), filename)
 
+_TRAFFIC_ALERT_THRESHOLD_BYTES = int(os.getenv('TRAFFIC_ALERT_THRESHOLD_BYTES', str(4 * 1024 ** 3)))
+
+@app.route('/traffic')
+def traffic_page():
+    period_key = datetime.now().strftime('%Y-%m')
+    try:
+        rows = sqlFunc.select(
+            "SELECT d.device_id, d.device_name, "
+            "       COALESCE(t.used_bytes, 0) AS used_bytes, "
+            "       t.alerted_at, t.updated_at, d.last_seen "
+            "FROM device d "
+            "LEFT JOIN device_traffic t "
+            "  ON d.device_id = t.device_id AND t.period_key = %s "
+            "ORDER BY used_bytes DESC, d.device_name",
+            (period_key,),
+        ) or []
+    except Exception as e:
+        return f"<pre>查詢失敗: {e}</pre>", 500
+
+    now = datetime.now()
+    threshold_gb = _TRAFFIC_ALERT_THRESHOLD_BYTES / (1024 ** 3)
+    items = []
+    for r in rows:
+        used = r.get('used_bytes') or 0
+        used_gb = used / (1024 ** 3)
+        used_mb = used / (1024 ** 2)
+        usage_str = (f"{used_gb:.2f} GB" if used_gb >= 1
+                     else (f"{used_mb:.1f} MB" if used > 0 else "—"))
+        pct = min(100, used_gb / threshold_gb * 100) if threshold_gb > 0 else 0
+        if pct >= 100:
+            color = '#dc2626'
+        elif pct >= 75:
+            color = '#f59e0b'
+        else:
+            color = '#10b981'
+        last_seen = r.get('last_seen')
+        if isinstance(last_seen, str):
+            try:
+                last_seen = datetime.strptime(last_seen, '%Y-%m-%d %H:%M:%S')
+            except Exception:
+                last_seen = None
+        online = bool(last_seen and (now - last_seen).total_seconds() < 180)
+        updated_at = r.get('updated_at')
+        items.append({
+            'device_id':   r['device_id'],
+            'device_name': r['device_name'] or r['device_id'],
+            'usage_str':   usage_str,
+            'pct':         pct,
+            'color':       color,
+            'alerted_at':  r.get('alerted_at'),
+            'updated_at':  updated_at.strftime('%m-%d %H:%M') if updated_at else '—',
+            'online':      online,
+        })
+
+    html = render_template_string(_TRAFFIC_TEMPLATE,
+                                  items=items,
+                                  period_key=period_key,
+                                  threshold_gb=threshold_gb,
+                                  generated_at=now.strftime('%Y-%m-%d %H:%M:%S'))
+    return html
+
+
+_TRAFFIC_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="zh-TW"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4G 流量監測</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+         background: #0f172a; color: #e2e8f0; margin: 0; padding: 24px; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  .meta { color: #94a3b8; font-size: 13px; margin-bottom: 20px; }
+  table { width: 100%; max-width: 900px; border-collapse: collapse;
+          background: #1e293b; border-radius: 8px; overflow: hidden; }
+  th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #334155; }
+  th { background: #334155; font-weight: 600; font-size: 13px; color: #cbd5e1; }
+  tr:last-child td { border-bottom: none; }
+  .bar-wrap { background: #334155; border-radius: 4px; height: 8px; width: 160px; overflow: hidden; }
+  .bar { height: 100%; transition: width .3s; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+         margin-right: 6px; vertical-align: middle; }
+  .online  { background: #10b981; }
+  .offline { background: #6b7280; }
+  .alert { color: #f87171; font-weight: 600; }
+  .footer { color: #64748b; font-size: 12px; margin-top: 16px; }
+</style></head>
+<body>
+  <h1>📊 4G 流量監測</h1>
+  <div class="meta">本月 {{ period_key }}　|　警告閾值 {{ '%.1f' % threshold_gb }} GB　|　更新於 {{ generated_at }}</div>
+  <table>
+    <thead><tr><th>裝置</th><th>本月用量</th><th>進度</th><th>最後回報</th><th>狀態</th></tr></thead>
+    <tbody>
+    {% for it in items %}
+      <tr>
+        <td>{{ it.device_name }} <span style="color:#64748b">({{ it.device_id }})</span></td>
+        <td{% if it.alerted_at %} class="alert"{% endif %}>{{ it.usage_str }}{% if it.alerted_at %} ⚠️{% endif %}</td>
+        <td>
+          <div class="bar-wrap"><div class="bar" style="width:{{ it.pct }}%; background:{{ it.color }}"></div></div>
+        </td>
+        <td style="color:#94a3b8">{{ it.updated_at }}</td>
+        <td><span class="dot {{ 'online' if it.online else 'offline' }}"></span>{{ '在線' if it.online else '離線' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="footer">資料來自 device_traffic 表，Pi 每小時上報一次。頁面手動重新整理。</div>
+</body></html>
+"""
+
+
 @app.route('/api/device-health', methods=['GET'])
 def get_device_health():
     rows = sqlFunc.select(
