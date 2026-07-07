@@ -23,6 +23,14 @@
         #container { display: flex; flex-direction: column; height: 100%; }
         #map-container { flex: 1; min-height: 0; position: relative; }
         #map { width: 100%; height: 100%; }
+
+        /* 裝置狀態卡片可點擊：點一下跳到該裝置（同「裝置快速跳轉」） */
+        .health-card--clickable { cursor: pointer; }
+        .health-card--clickable:hover { filter: brightness(1.03); }
+        .health-card--clickable:focus-visible {
+            outline: 2px solid var(--vw-accent, #2f7de1);
+            outline-offset: 2px;
+        }
     </style>
 
     <!-- Leaflet JS -->
@@ -258,6 +266,10 @@
             pending: { warn: 5, alert: 20 },
         };
 
+        // 裝置健康資料快取（device_name → 該筆資料），供地圖 popup 顯示在線狀態。
+        // 與「裝置狀態」面板共用同一份 /api/device-health 資料。
+        let healthByName = new Map();
+
         function toggleHealthPanel() {
             const panel = document.getElementById('health-panel');
             const btn = document.getElementById('health-btn');
@@ -296,6 +308,88 @@
             }
         }
 
+        // 依裝置名稱跳到地圖上的該裝置：重用「裝置快速跳轉」下拉選單既有邏輯，
+        // 不改動 mapFunctions.js。下拉選項文字格式為 `${name}（${countLabel}）`。
+        function jumpToDeviceByName(deviceName) {
+            const sel = document.getElementById('device-jump');
+            if (!sel || !deviceName) return false;
+            let matched = null;
+            for (const opt of sel.options) {
+                if (!opt.value) continue;
+                const namePart = opt.textContent.split('（')[0].trim();
+                if (namePart === deviceName) { matched = opt; break; }
+            }
+            if (!matched) return false;
+            sel.value = matched.value;
+            sel.dispatchEvent(new Event('change'));
+            // 跳轉後關閉健康面板，讓地圖與 popup 清楚可見（面板在手機上會蓋住地圖）
+            const panel = document.getElementById('health-panel');
+            if (panel && !panel.hidden) toggleHealthPanel();
+            return true;
+        }
+
+        // ============================================================
+        // 地圖 popup：在「資料」頁注入在線狀態欄（與裝置狀態面板一致）
+        // 不改 mapFunctions.js，改由 popupopen 事件動態插入。
+        // ============================================================
+        function _statusDdHtml(online) {
+            const label = online == null ? '未知' : (online ? '在線' : '離線');
+            const color = online == null ? '#8a8f98' : (online ? '#15A36F' : '#DB4C4C');
+            return `<span class="mos-popup__status-dd" style="color:${color};font-weight:600">● ${label}</span>`;
+        }
+
+        function _injectPopupStatus(root) {
+            if (!root) return;
+            const dl = root.querySelector('.mos-popup__dl');
+            if (!dl) return; // 設定頁沒有 dl，略過
+            const nameBtn = root.querySelector('[id^="device-name-btn-"]');
+            const deviceName = nameBtn ? nameBtn.textContent.trim() : '';
+            if (!deviceName) return;
+            const rec = healthByName.get(deviceName);
+            const online = rec ? !!rec.online : null;
+
+            let item = dl.querySelector('.mos-popup__status-item');
+            if (!item) {
+                item = document.createElement('div');
+                item.className = 'mos-popup__dl-item mos-popup__status-item';
+                item.innerHTML = `<dt>狀態</dt><dd></dd>`;
+                // 放在「裝置名稱」欄之後
+                const first = dl.querySelector('.mos-popup__dl-item');
+                if (first && first.nextSibling) dl.insertBefore(item, first.nextSibling);
+                else dl.appendChild(item);
+            }
+            // 只在狀態改變時才寫入，避免 MutationObserver 因自身變更而無限迴圈
+            const key = String(online);
+            if (item.dataset.statusState === key) return;
+            item.dataset.statusState = key;
+            item.querySelector('dd').innerHTML = _statusDdHtml(online);
+        }
+
+        // 當健康資料更新時，若有開啟中的 popup 一併刷新其狀態欄
+        function _refreshOpenPopupStatus() {
+            document.querySelectorAll('.leaflet-popup-content').forEach(_injectPopupStatus);
+        }
+
+        let _popupStatusObserver = null;
+        map.on('popupopen', (e) => {
+            const root = e.popup.getElement();
+            _injectPopupStatus(root);
+            // popup 內容在切換「設定」時會整段重建，用 observer 確保狀態欄補回
+            if (_popupStatusObserver) _popupStatusObserver.disconnect();
+            if (root && window.MutationObserver) {
+                _popupStatusObserver = new MutationObserver(() => _injectPopupStatus(root));
+                _popupStatusObserver.observe(root, { childList: true, subtree: true });
+            }
+            // 開啟時順手抓一次最新健康資料，確保狀態即時
+            fetch('/api/device-health')
+                .then(r => r.json())
+                .then(data => { if (Array.isArray(data)) { healthByName = new Map(data.map(d => [d.device_name, d])); _injectPopupStatus(root); } })
+                .catch(() => {});
+        });
+        map.on('popupclose', () => {
+            if (_popupStatusObserver) { _popupStatusObserver.disconnect(); _popupStatusObserver = null; }
+        });
+
         function _level(val, t) {
             if (val == null) return 'muted';
             if (val > t.alert) return 'alert';
@@ -331,7 +425,7 @@
             const pendPct = d.pending_count != null ? Math.min(100, (d.pending_count / 25) * 100) : 0;
 
             return `
-                <article class="health-card health-card--${worst}" data-device="${d.device_name}">
+                <article class="health-card health-card--${worst} health-card--clickable" data-device="${d.device_name}" role="button" tabindex="0" title="點一下跳到此裝置">
                     <div class="health-card__name">${d.device_name}</div>
                     <div class="health-card__status ${statusClass}">
                         <span class="health-card__dot"></span>${statusLabel}
@@ -357,6 +451,10 @@
         }
 
         function _updateKpis(data) {
+            if (Array.isArray(data)) {
+                healthByName = new Map(data.map(d => [d.device_name, d]));
+                _refreshOpenPopupStatus();
+            }
             const onlineN = data.filter(d => d.online).length;
             const totalN  = data.length;
             const alerts  = data.filter(d => {
@@ -444,6 +542,20 @@
                 .then(r => r.json())
                 .then(_updateKpis)
                 .catch(() => {});
+
+            // 事件委派：點擊或按 Enter/Space 於裝置卡片即跳轉到該裝置
+            const cardsEl = document.getElementById('health-cards');
+            if (cardsEl) {
+                cardsEl.addEventListener('click', (e) => {
+                    const card = e.target.closest('.health-card--clickable');
+                    if (card) jumpToDeviceByName(card.dataset.device);
+                });
+                cardsEl.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    const card = e.target.closest('.health-card--clickable');
+                    if (card) { e.preventDefault(); jumpToDeviceByName(card.dataset.device); }
+                });
+            }
 
             // 手機:按「確認查詢」後收起篩選面板(mapFunctions.js 的查詢仍照舊執行)
             const fetchBtn = document.getElementById('fetch-data');
