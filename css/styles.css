@@ -99,6 +99,10 @@ select {
     font-family: inherit;
 }
 
+/* 只在手機(≤640px)顯示的元素 */
+.vw-mobile-only { display: none; }
+@media (max-width: 640px) { .vw-mobile-only { display: inline-flex; } }
+
 /* ============================================================
    Layout container — vertical: toolbar on top, map fills rest
    ============================================================ */
@@ -768,8 +772,57 @@ select {
         gap: 8px;
     }
 
-    /* 查詢控制暫時隱藏 —— Task 2 會覆寫成底部 sheet */
-    .vw-controls { display: none; }
+    /* --- 篩選底部面板(sheet) --- */
+    .vw-controls {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 2100;                 /* 高於 health-panel(2000)與 scrim */
+        gap: 10px;
+        padding: 8px 16px 20px;
+        background: var(--vw-surface);
+        border-radius: 18px 18px 0 0;
+        border-top: 1px solid var(--vw-border);
+        box-shadow: 0 -12px 32px rgba(15, 27, 38, .16);
+        max-height: 80vh;
+        overflow-y: auto;
+        transform: translateY(110%);
+        transition: transform 240ms cubic-bezier(.4, 0, .2, 1);
+    }
+    .vw-controls.is-open { transform: translateY(0); }
+    /* drag handle */
+    .vw-controls::before {
+        content: "";
+        display: block;
+        width: 44px;
+        height: 4px;
+        flex-shrink: 0;
+        background: var(--vw-slate-200);
+        border-radius: 999px;
+        margin: 0 auto 4px;
+    }
+    /* 面板內控制:整寬堆疊,時間兩欄併排 */
+    .vw-controls .vw-control { flex: 1 1 auto; width: 100%; }
+    .app-toolbar__time-btn,
+    .vw-time-btn,
+    .app-toolbar select,
+    .vw-select,
+    .app-toolbar #device-jump { min-width: 0; width: 100%; }
+    .vw-controls .app-toolbar__primary,
+    .vw-controls .vw-btn { width: 100%; justify-content: center; }
+
+    /* scrim */
+    #mobile-scrim {
+        position: fixed;
+        inset: 0;
+        z-index: 2050;
+        background: rgba(11, 22, 32, .38);
+        border: 0;
+    }
+    #mobile-scrim[hidden] { display: none; }
 
     /* --- KPI 三晶片 → 薄橫列 --- */
     .vw-kpis {

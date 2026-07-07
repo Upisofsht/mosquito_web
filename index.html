@@ -34,6 +34,7 @@
 </head>
 <body>
     <div id="container">
+        <div id="mobile-scrim" hidden onclick="toggleFilterPanel(true)"></div>
         <!-- ============================================================
              Top toolbar: brand · controls · KPI chips · health toggle
              ============================================================ -->
@@ -156,6 +157,12 @@
                     </div>
                 </div>
 
+                <button type="button" id="filter-btn" class="vw-btn vw-btn--ghost vw-mobile-only" onclick="toggleFilterPanel()" aria-controls="health-panel" aria-expanded="false">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 5h18M6 12h12M10 19h4" />
+                    </svg>
+                    篩選
+                </button>
                 <button type="button" id="health-btn" class="vw-btn vw-btn--ghost" onclick="toggleHealthPanel()" aria-controls="health-panel" aria-expanded="false">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M3 12h4l2-6 4 12 2-6h6" />
@@ -250,6 +257,8 @@
             const panel = document.getElementById('health-panel');
             const btn = document.getElementById('health-btn');
             if (panel.hidden) {
+                // 互斥:開裝置狀態前先關篩選面板
+                toggleFilterPanel(true);
                 panel.hidden = false;
                 btn.setAttribute('aria-expanded', 'true');
                 btn.classList.add('vw-btn--active');
@@ -258,6 +267,27 @@
                 panel.hidden = true;
                 btn.setAttribute('aria-expanded', 'false');
                 btn.classList.remove('vw-btn--active');
+            }
+        }
+
+        // 手機「篩選」底部面板開關。forceClose=true 時只關不切換。
+        function toggleFilterPanel(forceClose) {
+            const controls = document.querySelector('.vw-controls');
+            const scrim = document.getElementById('mobile-scrim');
+            const btn = document.getElementById('filter-btn');
+            if (!controls) return;
+            const willOpen = forceClose ? false : !controls.classList.contains('is-open');
+            if (willOpen) {
+                // 互斥:先關裝置狀態面板
+                const health = document.getElementById('health-panel');
+                if (health && !health.hidden) toggleHealthPanel();
+                controls.classList.add('is-open');
+                if (scrim) scrim.hidden = false;
+                if (btn) btn.setAttribute('aria-expanded', 'true');
+            } else {
+                controls.classList.remove('is-open');
+                if (scrim) scrim.hidden = true;
+                if (btn) btn.setAttribute('aria-expanded', 'false');
             }
         }
 
