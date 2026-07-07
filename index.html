@@ -10,7 +10,7 @@
     <!-- Flatpickr CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
     <!-- Vector Watch dashboard styles -->
-    <link rel="stylesheet" href="/css/styles.css?v=20260707" />
+    <link rel="stylesheet" href="/css/styles.css?v=2026070704" />
 
     <style>
         /* Layout primitives — kept in <head> per legacy convention. */
@@ -240,6 +240,11 @@
             attribution: '© OpenStreetMap',
         }).addTo(map);
         window.addEventListener('resize', () => map.invalidateSize());
+
+        // 手機上 flatpickr 預設改用原生輸入框;因它綁在 <button>(非 <input>),
+        // 無法用 type="hidden" 隱藏原按鈕,會出現「原按鈕 + 原生輸入框」重複。
+        // 一律停用手機原生模式,改用自訂日曆(桌機本來就是自訂日曆,不受影響)。
+        if (window.flatpickr) flatpickr.setDefaults({ disableMobile: true });
 
         initControls(map, (s, e) => fetchDataByTimeAndRenderMarkers(s, e, map));
         fetchDataByTimeAndRenderMarkers(getDefaultStartTime(), getDefaultEndTime(), map);

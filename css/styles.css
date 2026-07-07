@@ -756,21 +756,25 @@ select {
     .vw-toolbar-right { width: 100%; }
     .vw-kpis { flex: 1 1 100%; }
 
-    /* --- 手機版方案 A:頂部細列 --- */
+    /* --- 手機版方案 A:第1行 品牌+按鈕、第2行 KPI 自成一列 --- */
     .app-toolbar {
-        grid-template-columns: 1fr auto;
-        grid-template-areas: "brand right";
+        grid-template-columns: 1fr auto auto;
+        grid-template-areas:
+            "brand  filter health"
+            "kpis   kpis   kpis";
         align-items: center;
-        gap: 8px 10px;
+        gap: 8px;
+        /* 高於 scrim(2050):否則篩選面板(此工具列的子孫)被困在 app-toolbar
+           基礎 z-index:1000 的堆疊脈絡裡,整個被 scrim 蓋住、點擊遭攔截 */
+        z-index: 2100;
     }
     .vw-brand { grid-area: brand; }
     .vw-brand__sub { display: none; }            /* 副標「Vector Watch」手機隱藏 */
-    .vw-toolbar-right {
-        grid-area: right;
-        width: auto;
-        flex-wrap: nowrap;
-        gap: 8px;
-    }
+    /* 攤平右群組進 grid,讓兩顆按鈕與 KPI 各就各位(桌機用 flex,不受影響) */
+    .vw-toolbar-right { display: contents; }
+    #filter-btn { grid-area: filter; }
+    #health-btn { grid-area: health; }
+    .vw-kpis { grid-area: kpis; justify-self: start; }
 
     /* --- 篩選底部面板(sheet) --- */
     .vw-controls {
@@ -1390,6 +1394,9 @@ select {
    Flatpickr — teal accent
    ============================================================ */
 .flatpickr-calendar {
+    /* 必須高於手機篩選面板(2100)與 scrim(2050),否則日曆被壓在變暗層下、
+       點日曆會誤觸 scrim 導致面板關閉 */
+    z-index: 2200 !important;
     border-radius: 12px !important;
     box-shadow: var(--vw-shadow-4) !important;
     border: 1px solid var(--vw-border) !important;
