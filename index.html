@@ -439,6 +439,21 @@
                 .then(r => r.json())
                 .then(_updateKpis)
                 .catch(() => {});
+
+            // 手機:按「確認查詢」後收起篩選面板(mapFunctions.js 的查詢仍照舊執行)
+            const fetchBtn = document.getElementById('fetch-data');
+            if (fetchBtn) {
+                fetchBtn.addEventListener('click', () => {
+                    if (window.matchMedia('(max-width: 640px)').matches) toggleFilterPanel(true);
+                });
+            }
+            // 手機:於面板內選裝置跳轉後也收起面板
+            const deviceJump = document.getElementById('device-jump');
+            if (deviceJump) {
+                deviceJump.addEventListener('change', () => {
+                    if (window.matchMedia('(max-width: 640px)').matches) toggleFilterPanel(true);
+                });
+            }
         });
 
         // ============================================================
