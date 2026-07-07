@@ -231,7 +231,7 @@
     </div>
 
     <!-- Map function library (DO NOT MODIFY) -->
-    <script src="/js/mapFunctions.js?v=20260522"></script>
+    <script src="/js/mapFunctions.js?v=20260707"></script>
     <script>
         // ============================================================
         // Map init — unchanged contract with mapFunctions.js
@@ -425,8 +425,8 @@
             const pendPct = d.pending_count != null ? Math.min(100, (d.pending_count / 25) * 100) : 0;
 
             return `
-                <article class="health-card health-card--${worst} health-card--clickable" data-device="${d.device_name}" role="button" tabindex="0" title="點一下跳到此裝置">
-                    <div class="health-card__name">${d.device_name}</div>
+                <article class="health-card health-card--${worst} health-card--clickable" data-device="${esc(d.device_name)}" role="button" tabindex="0" title="點一下跳到此裝置">
+                    <div class="health-card__name">${esc(d.device_name)}</div>
                     <div class="health-card__status ${statusClass}">
                         <span class="health-card__dot"></span>${statusLabel}
                     </div>
@@ -518,7 +518,7 @@
                             ? '<span style="color:#15A36F">●</span> 在線'
                             : '<span style="color:#DB4C4C">●</span> 離線';
                         return `<tr>
-                            <td>${d.device_name}</td>
+                            <td>${esc(d.device_name)}</td>
                             <td>${dot}</td>
                             <td>${d.cpu_temp ?? '—'}</td>
                             <td>${d.disk_pct ?? '—'}</td>

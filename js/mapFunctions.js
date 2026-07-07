@@ -1,5 +1,20 @@
 // 假設後端提供圖片的基底 URL
 const BASE_URL = 'https://mosweb.ddns.net/mosquito/mos_mysql';
+
+// ============================================================
+// XSS 防護:凡是把使用者/裝置資料(device_name、address、location、
+// photo_id、URL…)塞進 innerHTML 前,一律用 esc() 跳脫;URL 屬性改用
+// safeUrl()(只允許 http(s):// 或站內相對路徑,擋 javascript: 等)。
+// ============================================================
+function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+}
+function safeUrl(u) {
+    const s = String(u == null ? '' : u).trim();
+    return /^(https?:\/\/|\/)/i.test(s) ? esc(s) : '';
+}
 // 版面：查詢工具列在 index.html 的 #app-toolbar；#map-container 用 flex:1 + min-height:0 填滿剩餘高度；版面變動後請 map.invalidateSize()。
 
 // re-test 用 cache-buster：照片檔名固定，re-test 後覆寫同檔。
@@ -323,7 +338,7 @@ function buildPhotoListItemHtml(photo, mosquitoNameMapping) {
             ? photo.mosquito_types
                   .map(
                       (type, index) =>
-                          `<p class="mos-photo-card__stat-line">${mosquitoNameMapping[type] || type}：${photo.mosquito_counts[index]} 隻</p>`
+                          `<p class="mos-photo-card__stat-line">${esc(mosquitoNameMapping[type] || type)}：${esc(photo.mosquito_counts[index])} 隻</p>`
                   )
                   .join('')
             : '<p class="mos-photo-card__stat-line mos-photo-card__stat-line--muted">未檢測到新蚊子</p>';
@@ -335,7 +350,7 @@ function buildPhotoListItemHtml(photo, mosquitoNameMapping) {
             ? photo.current_mosquito_types
                   .map(
                       (type, index) =>
-                          `<p class="mos-photo-card__stat-line">${mosquitoNameMapping[type] || type}：${photo.current_mosquito_counts[index]} 隻</p>`
+                          `<p class="mos-photo-card__stat-line">${esc(mosquitoNameMapping[type] || type)}：${esc(photo.current_mosquito_counts[index])} 隻</p>`
                   )
                   .join('')
             : '<p class="mos-photo-card__stat-line mos-photo-card__stat-line--muted">目前無蚊子</p>';
@@ -345,15 +360,15 @@ function buildPhotoListItemHtml(photo, mosquitoNameMapping) {
     const labelBtnText = needsLabel ? '已標記' : '待標記';
     const labelCls = needsLabel ? 'mos-btn--label-done' : 'mos-btn--label-todo';
     const photoActions = photoId
-        ? `<div class="mos-photo-card__actions"><button type="button" class="mos-btn mos-btn--sm mos-btn--secondary re-test-btn" data-photo-id="${photoId}">重新測試</button><button type="button" class="mos-btn mos-btn--sm mos-btn--soft label-toggle-btn ${labelCls}" data-photo-id="${photoId}" data-needs-label="${needsLabel}">${labelBtnText}</button></div>`
+        ? `<div class="mos-photo-card__actions"><button type="button" class="mos-btn mos-btn--sm mos-btn--secondary re-test-btn" data-photo-id="${esc(photoId)}">重新測試</button><button type="button" class="mos-btn mos-btn--sm mos-btn--soft label-toggle-btn ${labelCls}" data-photo-id="${esc(photoId)}" data-needs-label="${needsLabel}">${labelBtnText}</button></div>`
         : '';
     return `
         <li class="mos-photo-card">
             <div class="mos-photo-card__grid">
                 <div class="mos-photo-card__meta">
-                    <p class="mos-photo-card__time">${formattedTime}</p>
-                    <p class="mos-photo-card__row"><span class="mos-photo-card__k">位置</span> ${photo.location}</p>
-                    <p class="mos-photo-card__row"><span class="mos-photo-card__k">總數</span> ${totalMosquitoCount} 隻</p>
+                    <p class="mos-photo-card__time">${esc(formattedTime)}</p>
+                    <p class="mos-photo-card__row"><span class="mos-photo-card__k">位置</span> ${esc(photo.location)}</p>
+                    <p class="mos-photo-card__row"><span class="mos-photo-card__k">總數</span> ${esc(totalMosquitoCount)} 隻</p>
                     <div class="mos-photo-card__block">
                         <span class="mos-photo-card__k">目前種類</span>
                         ${currentMosquitoStats}
@@ -365,7 +380,7 @@ function buildPhotoListItemHtml(photo, mosquitoNameMapping) {
                 </div>
                 <div class="mos-photo-card__thumb">
                     <span class="mos-photo-card__k mos-photo-card__k--thumb">預覽</span>
-                    <img class="mos-photo-card__img" src="${photoUrl}" alt="" data-primary-url="${photoUrl}">
+                    <img class="mos-photo-card__img" src="${safeUrl(photoUrl)}" alt="" data-primary-url="${safeUrl(photoUrl)}">
                 </div>
             </div>
             ${photoActions}
@@ -542,7 +557,7 @@ function renderMarkers(data, map, formattedStartTime, formattedEndTime, fitMapTo
                 name: item.device_name || regKey,
                 countLabel: `${countFull} 隻`
             });
-            marker.bindTooltip(`${item.device_name}：${countFull} 隻`, {
+            marker.bindTooltip(`${esc(item.device_name)}：${countFull} 隻`, {
                 sticky: true,
                 direction: 'top'
             });
@@ -568,19 +583,19 @@ function renderMarkers(data, map, formattedStartTime, formattedEndTime, fitMapTo
                                 <dl class="mos-popup__dl">
                                     <div class="mos-popup__dl-item">
                                         <dt>裝置名稱</dt>
-                                        <dd><button type="button" id="device-name-btn-${idSuf}" class="mos-btn mos-btn--accent">${item.device_name}</button></dd>
+                                        <dd><button type="button" id="device-name-btn-${idSuf}" class="mos-btn mos-btn--accent">${esc(item.device_name)}</button></dd>
                                     </div>
                                     <div class="mos-popup__dl-item">
                                         <dt>座標／地址</dt>
-                                        <dd class="mos-popup__mono">${item.device_address}</dd>
+                                        <dd class="mos-popup__mono">${esc(item.device_address)}</dd>
                                     </div>
                                     <div class="mos-popup__dl-item">
                                         <dt>時間範圍總數</dt>
-                                        <dd><span class="mos-popup__stat">${item.count} 隻</span></dd>
+                                        <dd><span class="mos-popup__stat">${esc(item.count)} 隻</span></dd>
                                     </div>
                                     <div class="mos-popup__dl-item">
                                         <dt>種類統計</dt>
-                                        <dd class="mos-popup__stats-inline">AG斑紋類 ${item.m5} 隻 · HG家蚊類 ${item.m6} 隻</dd>
+                                        <dd class="mos-popup__stats-inline">AG斑紋類 ${esc(item.m5)} 隻 · HG家蚊類 ${esc(item.m6)} 隻</dd>
                                     </div>
                                 </dl>
                                 <div class="mos-popup__actions">
@@ -610,7 +625,7 @@ function renderMarkers(data, map, formattedStartTime, formattedEndTime, fitMapTo
             const settingsContent = `
                 <div class="mos-popup mos-popup--settings">
                     <header class="mos-popup__settings-head">
-                        <h2 class="mos-popup__heading">${item.device_name}</h2>
+                        <h2 class="mos-popup__heading">${esc(item.device_name)}</h2>
                         <p class="mos-popup__settings-sub">裝置設定</p>
                     </header>
                     <div class="mos-popup__field">
@@ -746,7 +761,7 @@ function renderMarkers(data, map, formattedStartTime, formattedEndTime, fitMapTo
                                     storedTimes.forEach(time => {
                                         const formattedTime = `${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`;
                                         const li = document.createElement('li');
-                                        li.innerHTML = `${formattedTime} <button type="button" class="mos-btn mos-btn--xs mos-btn--danger-outline delete-time-btn" data-time="${time}">刪除</button>`;
+                                        li.innerHTML = `${esc(formattedTime)} <button type="button" class="mos-btn mos-btn--xs mos-btn--danger-outline delete-time-btn" data-time="${esc(time)}">刪除</button>`;
                                         storedTimesUl.appendChild(li);
                                     });
 
@@ -815,7 +830,7 @@ function renderMarkers(data, map, formattedStartTime, formattedEndTime, fitMapTo
                                     resetTimes.forEach(time => {
                                         const formattedTime = `${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}`;
                                         const li = document.createElement('li');
-                                        li.innerHTML = `${formattedTime} <button type="button" class="mos-btn mos-btn--xs mos-btn--danger-outline delete-reset-time-btn" data-time="${time}">刪除</button>`;
+                                        li.innerHTML = `${esc(formattedTime)} <button type="button" class="mos-btn mos-btn--xs mos-btn--danger-outline delete-reset-time-btn" data-time="${esc(time)}">刪除</button>`;
                                         resetTimeListUl.appendChild(li);
                                     });
 

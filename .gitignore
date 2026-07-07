@@ -21,3 +21,6 @@ app_output.log
 # 系統
 .DS_Store
 Thumbs.db
+
+# 舊的 PR 打包快照(非 live 服務內容,勿追蹤)
+_pr_package/
