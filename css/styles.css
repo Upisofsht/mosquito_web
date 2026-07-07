@@ -751,6 +751,46 @@ select {
     .vw-kpi__value { font-size: 16px; }
     .vw-toolbar-right { width: 100%; }
     .vw-kpis { flex: 1 1 100%; }
+
+    /* --- 手機版方案 A:頂部細列 --- */
+    .app-toolbar {
+        grid-template-columns: 1fr auto;
+        grid-template-areas: "brand right";
+        align-items: center;
+        gap: 8px 10px;
+    }
+    .vw-brand { grid-area: brand; }
+    .vw-brand__sub { display: none; }            /* 副標「Vector Watch」手機隱藏 */
+    .vw-toolbar-right {
+        grid-area: right;
+        width: auto;
+        flex-wrap: nowrap;
+        gap: 8px;
+    }
+
+    /* 查詢控制暫時隱藏 —— Task 2 會覆寫成底部 sheet */
+    .vw-controls { display: none; }
+
+    /* --- KPI 三晶片 → 薄橫列 --- */
+    .vw-kpis {
+        flex: 0 0 auto;
+        width: auto;
+        gap: 0;
+        padding: 3px 8px;
+        border-radius: 999px;
+    }
+    .vw-kpi {
+        padding: 2px 10px;
+        gap: 6px;
+        box-shadow: none;
+        background: transparent;
+        border-radius: 0;
+    }
+    .vw-kpi + .vw-kpi { border-left: 1px solid var(--vw-border-soft); }
+    .vw-kpi__icon { display: none; }             /* 薄列不放 icon,省空間 */
+    .vw-kpi__text { flex-direction: row; align-items: baseline; gap: 5px; }
+    .vw-kpi__label { font-size: 9px; }
+    .vw-kpi__value { font-size: 14px; margin-top: 0; }
 }
 
 /* ============================================================
