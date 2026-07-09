@@ -100,8 +100,8 @@ select {
 }
 
 /* 只在手機(≤640px)顯示的元素 */
-.vw-mobile-only { display: none; }
-@media (max-width: 640px) { .vw-mobile-only { display: inline-flex; } }
+.vw-mobile-only { display: none !important; }
+@media (max-width: 640px) { .vw-mobile-only { display: inline-flex !important; } }
 
 /* ============================================================
    Layout container — vertical: toolbar on top, map fills rest
