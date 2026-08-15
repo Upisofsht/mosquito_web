@@ -171,10 +171,16 @@ def get_all_addresses():
         return jsonify({"error": "No addresses found"}), 404
 
 _PI_FILES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'mos-pi')
+# 必須與 mos-pi/updater.py 的 UPDATABLE_FILES 一致。
+# Why 這裡少一個檔案就等於那個檔案永遠無法經 OTA 更新：Caddy 把 /api/* 導到
+# 這支 app，所以真正在對外供應 OTA 檔案的是它（不是 new2）。實例：traffic_monitor.py
+# 原本不在這份清單裡，2026-08-11 的 1.0.17 更新時 7 台機器各拿到一次 404。
+# tests/test_deploy_script.py 有一條測試在比對這兩份清單。
 _PI_ALLOWED_FILES = {
     'main.py', 'fetcher.py', 'mqtt_service.py', 'cam.py',
     'sender.py', 'connect.py', 'config_loader.py', 'SQL.py',
     'wifi_locator.py', 'updater.py', 'tunnel_manager.py',
+    'traffic_monitor.py',
 }
 
 @app.route('/api/pi-version', methods=['GET'])
