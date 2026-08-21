@@ -898,7 +898,12 @@ if __name__ == '__main__':
     try:
         with app.app_context():
             scheduler.start()  # 在應用上下文內啟動
-        app.run(debug=False, host='0.0.0.0', port=5001)
+        # 只綁 127.0.0.1：對外一律經 Caddy（https://mosweb.ddns.net）。
+        # Why: 綁 0.0.0.0 時實測有 40 個外部 IP 直接連進 5001，那是一條沒有 TLS、
+        # 也繞過 Caddy 路由規則的平行入口，而它不提供任何合法用途——
+        # Caddy 是用 reverse_proxy 127.0.0.1:5001 連進來的。
+        # 本機防火牆由 GPO 管理（本機規則不生效），所以在應用層綁定才可靠。
+        app.run(debug=False, host=os.getenv('WEB_BIND_HOST', '127.0.0.1'), port=5001)
     except (KeyboardInterrupt, SystemExit):
         scheduler.shutdown()
 '''
