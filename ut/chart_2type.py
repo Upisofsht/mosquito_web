@@ -3,7 +3,8 @@ import pandas as pd
 import plotly.express as px 
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
-import mysql.connector
+# 與網站其他查詢共用同一個 select（.env 的受限帳號），不再自己用 root 連線
+from .sqlFunctions import select
 
 # 定義映射
 MOSQUITO_NAME_MAPPING = {
@@ -15,33 +16,6 @@ MOSQUITO_NAME_MAPPING = {
     "AG": "AG斑蚊類",
     "HG": "HG家蚊類"
 }
-
-def select(query, params=None):
-    """
-    執行 SQL 查詢並返回結果。
-    :param query: SQL 查詢語句
-    :param params: 查詢的參數 (tuple)
-    :return: 查詢結果列表
-    """
-    conn = None
-    try:
-        conn = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="Mos@Root!2024",
-            database="mosqui"
-        )
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute(query, params)
-        results = cursor.fetchall()
-        return results
-    except mysql.connector.Error as err:
-        print(f"Database Error: {err}")
-        return None
-    finally:
-        if conn:
-            cursor.close()
-            conn.close()
 
 def generate_last_24h_chart():
     """

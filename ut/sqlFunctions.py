@@ -9,16 +9,22 @@ except ImportError:
     pass
 
 # 資料庫連接函數
+# 帳密一律由 .env 提供（DB_USER / DB_PASSWORD），程式裡不放任何預設帳號或密碼。
 def connect_to_database():
+    user, password = os.getenv('DB_USER'), os.getenv('DB_PASSWORD')
+    if not user or not password:
+        print("Error: DB_USER / DB_PASSWORD 未設定（請檢查 .env）")
+        return None
     try:
         conn = mysql.connector.connect(
-            host=os.getenv('DB_HOST', 'localhost'),       
-            user=os.getenv('DB_USER', 'root'),            
-            password=os.getenv('DB_PASSWORD', 'Mos@Root!2024'),            
-            database=os.getenv('DB_NAME', 'mosqui')     
+            host=os.getenv('DB_HOST', 'localhost'),
+            port=int(os.getenv('DB_PORT', '3306')),
+            user=user,
+            password=password,
+            database=os.getenv('DB_NAME', 'mosqui')
         )
         return conn
-    except mysql.connector.Error as err:
+    except (mysql.connector.Error, ValueError) as err:
         print(f"Error: {err}")
         return None
 

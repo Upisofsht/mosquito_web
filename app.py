@@ -14,6 +14,7 @@ import mysql.connector
 from apscheduler.schedulers.background import BackgroundScheduler
 import ssl
 import re
+import threading
 
 # MQTT：觸發 Pi 拍照用
 try:
@@ -22,25 +23,62 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-MQTT_BROKER = os.getenv('MQTT_BROKER', 'mosweb.ddns.net')
-MQTT_PORT = int(os.getenv('MQTT_PORT', '1883'))
 MQTT_TAKE_PHOTO_TOPIC = "device/{device_id}/command"
 MQTT_TAKE_PHOTO_PAYLOAD = "take_photo"
+MQTT_PUBLISH_TIMEOUT_SEC = 5
 
 def publish_take_photo(device_id):
-    """發送 MQTT 指令讓 Pi 即時拍照（Pi 收到後會把 DB take_photo 清 0，避免重複觸發）"""
+    """發送 MQTT 指令讓 Pi 即時拍照（Pi 收到後會把 DB take_photo 清 0，避免重複觸發）
+
+    broker 的 ACL 只允許 server 帳號（.env 的 MQTT_USER / MQTT_PASS）發 device/+/command，
+    匿名或 Pi 帳號發送會被拒絕。帳密在呼叫時才讀，確保 load_dotenv() 已經執行過。
+    """
     if not MQTT_AVAILABLE:
         logging.warning("paho-mqtt 未安裝，略過 MQTT 發送")
         return
+    user, password = os.getenv('MQTT_USER'), os.getenv('MQTT_PASS')
+    if not user or not password:
+        logging.warning("MQTT_USER / MQTT_PASS 未設定，略過 MQTT 發送（只靠 DB take_photo 觸發）")
+        return
+    topic = MQTT_TAKE_PHOTO_TOPIC.format(device_id=device_id)
+    # client_id 加亂數：同一台同時被觸發兩次時，不會互相把對方的連線踢掉
+    # reconnect_on_failure=False：帳密錯誤時不要在背景一直重試登入
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,
+                         client_id=f"web_{device_id}_trigger_{os.urandom(3).hex()}",
+                         reconnect_on_failure=False)
+    client.username_pw_set(user, password)
+    connack = {}
+    connected = threading.Event()
+
+    def on_connect(_client, _userdata, _flags, reason_code, _properties):
+        connack['rc'] = reason_code
+        connected.set()
+
+    client.on_connect = on_connect
     try:
-        client = mqtt.Client(client_id=f"web_{device_id}_trigger")
-        client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        topic = MQTT_TAKE_PHOTO_TOPIC.format(device_id=device_id)
-        client.publish(topic, MQTT_TAKE_PHOTO_PAYLOAD)
-        client.disconnect()
-        logging.info(f"MQTT 已發送 take_photo 至 {topic}")
+        client.connect(os.getenv('MQTT_BROKER', '127.0.0.1'), int(os.getenv('MQTT_PORT', '1883')), 60)
+        client.loop_start()
+        if not connected.wait(MQTT_PUBLISH_TIMEOUT_SEC):
+            logging.warning(f"MQTT broker {MQTT_PUBLISH_TIMEOUT_SEC}s 內沒有回應連線，略過 take_photo（不影響 DB 觸發）")
+            return
+        if connack['rc'].is_failure:
+            logging.warning(f"MQTT 登入被拒（{connack['rc']}），請檢查 .env 的 MQTT_USER / MQTT_PASS（不影響 DB 觸發）")
+            return
+        # QoS 1：等 broker 回 PUBACK，確定指令真的送到 broker 才記成功
+        info = client.publish(topic, MQTT_TAKE_PHOTO_PAYLOAD, qos=1)
+        info.wait_for_publish(timeout=MQTT_PUBLISH_TIMEOUT_SEC)
+        if info.is_published():
+            logging.info(f"MQTT 已發送 take_photo 至 {topic}")
+        else:
+            logging.warning(f"MQTT take_photo 未在 {MQTT_PUBLISH_TIMEOUT_SEC}s 內確認送達 {topic}（不影響 DB 觸發）")
     except Exception as e:
         logging.warning(f"MQTT 發送失敗 (不影響 DB 觸發): {e}")
+    finally:
+        try:
+            client.disconnect()
+            client.loop_stop()
+        except Exception:
+            pass
 
 # 嘗試載入環境變數
 try:
