@@ -109,6 +109,16 @@ except Exception as e:
 # 限制 CORS 來源以提高安全性
 CORS(app, resources={r"/api/*": {"origins": "https://mosweb.ddns.net"}})
 
+
+def _server_error(public_message, status=500):
+    """把例外的原文留在記錄檔，只回給用戶端一句固定的話。只能在 except 區塊裡呼叫。
+
+    Why: 2026-11-19 入侵測試 B-5——資料庫例外的原文會帶出表名、欄位、SQL 片段、主機位址，
+    這些不該給用戶端看。要查原因看 logs/mosquito_web.log。
+    """
+    logging.exception("%s %s -> %s", request.method, request.path, public_message)
+    return jsonify({"error": public_message}), status
+
 # 設定圖片檔案的實際儲存目錄
 PHOTO_STORAGE_DIR = os.getenv('PHOTO_STORAGE_DIR', 'D:/mosquito/mos_mysql')
 BASE_PHOTO_URL = os.getenv('BASE_PHOTO_URL', 'https://mosweb.ddns.net/mosquito/mos_mysql/')
@@ -252,8 +262,9 @@ def traffic_page():
             "ORDER BY used_bytes DESC, d.device_name",
             (period_key,),
         ) or []
-    except Exception as e:
-        return f"<pre>查詢失敗: {e}</pre>", 500
+    except Exception:
+        logging.exception("%s %s 查詢失敗", request.method, request.path)
+        return "<pre>查詢失敗，請稍後再試</pre>", 500
 
     now = datetime.now()
     threshold_gb = _TRAFFIC_ALERT_THRESHOLD_BYTES / (1024 ** 3)
@@ -401,7 +412,7 @@ def get_chart_for_address():
             return jsonify({"error": "Failed to generate chart due to invalid data or configuration"}), 500
     except Exception as e:
         print(f"Error generating chart: {str(e)}")
-        return jsonify({"error": f"Failed to generate chart: {str(e)}"}), 500
+        return _server_error("Failed to generate chart")
 
 @app.route('/api/device-photos', methods=['GET'])
 def get_device_photos():
@@ -529,7 +540,7 @@ def schedule_photo():
 
         return jsonify({"success": True, "message": f"Scheduled {len(new_times)} new photo times for device {device_id}"}), 200
     except Exception as e:
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
+        return _server_error("Database error")
 
 @app.route('/api/device-times', methods=['GET'])
 def get_device_times():
@@ -553,10 +564,10 @@ def get_device_times():
             return jsonify({"times": []}), 200
     except mysql.connector.Error as e:
         print(f"Database error for device_id={device_id}, type={time_type}: {str(e)}")  # 記錄資料庫錯誤
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
+        return _server_error("Database error")
     except Exception as e:
         print(f"Unexpected error for device_id={device_id}, type={time_type}: {str(e)}")  # 記錄其他錯誤
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        return _server_error("Unexpected error")
 
 @app.route('/api/take-photo', methods=['POST'])
 def take_photo():
@@ -584,9 +595,9 @@ def take_photo():
         else:
             return jsonify({"error": "Device not found"}), 404
     except mysql.connector.Error as e:
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
+        return _server_error("Database error")
     except Exception as e:
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        return _server_error("Unexpected error")
 
 @app.route('/api/get-photo', methods=['POST'])
 def get_photo():
@@ -606,9 +617,9 @@ def get_photo():
         else:
             return jsonify({"error": "Device not found"}), 404
     except mysql.connector.Error as e:
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
+        return _server_error("Database error")
     except Exception as e:
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        return _server_error("Unexpected error")
 
 @app.route('/api/reset-device', methods=['POST'])
 def reset_device():
@@ -648,9 +659,9 @@ def reset_device():
             else:
                 return jsonify({"error": "Device not found"}), 404
     except mysql.connector.Error as e:
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
+        return _server_error("Database error")
     except Exception as e:
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        return _server_error("Unexpected error")
 
 @app.route('/api/delete-time', methods=['POST'])
 def delete_time():
@@ -673,7 +684,7 @@ def delete_time():
         else:
             return jsonify({"error": "Time not found"}), 404
     except Exception as e:
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
+        return _server_error("Database error")
 
 @app.route('/mosquito/mos_mysql/default.jpg')
 def serve_default_image():
@@ -716,7 +727,7 @@ def set_reset_times():
 
         return jsonify({"success": True, "message": f"Scheduled {len(new_times)} new reset times for device {device_id}"}), 200
     except Exception as e:
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
+        return _server_error("Database error")
 
 @app.route('/api/photo-label-toggle', methods=['POST'])
 def photo_label_toggle():
@@ -777,15 +788,16 @@ def re_test_photo():
         body = e.read().decode('utf-8') if e.fp else ''
         try:
             err = json_module.loads(body)
-            return jsonify({"error": err.get("error", body or str(e))}), e.code
+            return jsonify({"error": err.get("error") or "偵測服務回應錯誤 (HTTP %d)" % e.code}), e.code
         except Exception:
-            return jsonify({"error": body or str(e)}), e.code
+            logging.warning("Re-test: new2 回 HTTP %s，內容不是預期的 JSON", e.code)
+            return jsonify({"error": "偵測服務回應錯誤 (HTTP %d)" % e.code}), e.code
     except urllib.error.URLError as e:
         logging.warning("Re-test 無法連線 new2: %s", e.reason)
-        return jsonify({"error": f"無法連線至偵測服務 (new2)，請確認服務已啟動: {e.reason}"}), 503
+        return jsonify({"error": "無法連線至偵測服務 (new2)，請確認服務已啟動"}), 503
     except Exception as e:
         logging.exception("呼叫 new2 re-test 失敗")
-        return jsonify({"error": f"重新測試請求失敗: {str(e)}"}), 500
+        return jsonify({"error": "重新測試請求失敗"}), 500
 
 # 定時任務：檢查並更新 temp 為 -1，支援多次重置並補償錯過的時間
 def check_reset_times():
