@@ -870,7 +870,7 @@ def device_page(device_id):
         <!DOCTYPE html>
         <html>
         <head>
-            <title>https://drive.google.com/drive/folders/1pFCJCFi3x3JRndV_JuKuzKwEpZQLrRx8?usp=sharing {{ device_id }}</title>
+            <title>{{ device_id }}</title>
             <style>
                 body { font-family: Arial, sans-serif; margin: 0; padding: 50px; }
                 h1 { text-align: center; }
